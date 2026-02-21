@@ -1,4 +1,4 @@
-# streamlit_botaniquerdd_multi_login.py
+# streamlit_botaniquerdd_multi_accounts.py
 
 import streamlit as st
 import pandas as pd
@@ -6,12 +6,13 @@ import random
 import json
 import os
 
-# ----------- Constants -----------
+# ---------------------- Constants ----------------------
 
 INVENTAIRE_FILE = "inventaires.json"
+# Mot de passe administrateur
 ADMIN_CREDENTIALS = {"admin": "password"}  # à changer en production
 
-# ----------- Session State -----------
+# ---------------------- Session State ----------------------
 
 for key in ["joueur", "role", "inventaires", "historique", "compteur", "last_tirage"]:
     if key not in st.session_state:
@@ -22,7 +23,7 @@ for key in ["joueur", "role", "inventaires", "historique", "compteur", "last_tir
         else:
             st.session_state[key] = None
 
-# ----------- Chargement JSON -----------
+# ---------------------- Chargement JSON ----------------------
 
 def charger_inventaires():
     if os.path.exists(INVENTAIRE_FILE):
@@ -38,7 +39,7 @@ def sauvegarder_inventaires():
 
 charger_inventaires()
 
-# ----------- Chargement CSV -----------
+# ---------------------- Chargement CSV ----------------------
 
 @st.cache_data
 def charger_fichier(nom_fichier):
@@ -64,7 +65,7 @@ fichiers = {
     "Sous-sols": charger_fichier("Sous-sols.csv"),
 }
 
-# ----------- Fonctions utilitaires -----------
+# ---------------------- Fonctions utilitaires ----------------------
 
 def get_color_stars(rarete_val):
     if rarete_val < -6:
@@ -131,7 +132,7 @@ def tirer_plantes(df, nb, env):
 
     return resultat_html, tirage_result_total
 
-# ----------- Page login -----------
+# ---------------------- Page login / inscription ----------------------
 
 st.title("🌱 Mini-Jeu de Plantes Multi-joueurs")
 
@@ -139,27 +140,43 @@ if st.session_state.joueur is None:
     with st.form("login_form"):
         pseudo = st.text_input("Pseudo")
         mdp = st.text_input("Mot de passe (pour admin)", type="password")
-        submit = st.form_submit_button("Se connecter")
-        if submit:
+        bouton_login = st.form_submit_button("Se connecter")
+        bouton_signup = st.form_submit_button("Créer un compte")
+
+        if bouton_login:
             # Admin
             if pseudo in ADMIN_CREDENTIALS and mdp == ADMIN_CREDENTIALS[pseudo]:
                 st.session_state.joueur = pseudo
                 st.session_state.role = "admin"
                 st.success("Connecté en tant qu'administrateur")
-            else:
+            elif pseudo in st.session_state.inventaires:
                 st.session_state.joueur = pseudo
                 st.session_state.role = "joueur"
                 st.success(f"Connecté en tant que joueur : {pseudo}")
-            # Initialisation inventaire et historique
+            else:
+                st.warning("Pseudo non trouvé, veuillez créer un compte")
+            # Initialisation inventaire
             st.session_state.inventaires.setdefault(st.session_state.joueur, {})
-            st.session_state.historique.setdefault(st.session_state.joueur, {})
-            st.experimental_rerun()
+            st.session_state.historique.setdefault(st.session_state.joueur, [])
+
+        if bouton_signup:
+            if pseudo in st.session_state.inventaires or pseudo in ADMIN_CREDENTIALS:
+                st.warning("Pseudo déjà existant, choisissez-en un autre")
+            else:
+                st.session_state.joueur = pseudo
+                st.session_state.role = "joueur"
+                st.session_state.inventaires[pseudo] = {}
+                st.session_state.historique[pseudo] = []
+                sauvegarder_inventaires()
+                st.success(f"Compte créé et connecté en tant que : {pseudo}")
+
 else:
     st.write(f"🎮 Connecté : {st.session_state.joueur} ({st.session_state.role})")
 
-# ----------- Joueurs -----------
+# ---------------------- Interface joueur ----------------------
 
 if st.session_state.joueur:
+
     if st.session_state.role == "joueur":
         # ---------- Tirages ----------
         env = st.selectbox("Choisissez un environnement :", list(fichiers.keys()))
@@ -196,7 +213,6 @@ if st.session_state.joueur:
             st.session_state.inventaires[st.session_state.joueur] = {}
             st.session_state.historique[st.session_state.joueur] = []
             sauvegarder_inventaires()
-            st.experimental_rerun()
 
         if colB.button("📥 Télécharger inventaire CSV"):
             df_inv = pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"])
@@ -208,9 +224,8 @@ if st.session_state.joueur:
             )
 
     elif st.session_state.role == "admin":
+        # ---------- Administration ----------
         st.subheader("🧑‍🌾 Administration")
-
-        # Liste des joueurs
         joueurs = list(st.session_state.inventaires.keys())
         st.write(f"Joueurs : {', '.join(joueurs)}")
 
@@ -219,7 +234,6 @@ if st.session_state.joueur:
             plantes_disponibles = st.session_state.last_tirage["Nom"].tolist()
             plante_choisie = st.selectbox("Plante à distribuer", plantes_disponibles)
             if st.button("Distribuer"):
-                # Sécurisation
                 st.session_state.inventaires.setdefault(joueur_choisi, {})
                 st.session_state.historique.setdefault(joueur_choisi, [])
                 inventaire = st.session_state.inventaires[joueur_choisi]
