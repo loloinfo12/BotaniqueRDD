@@ -13,7 +13,7 @@ INVENTAIRE_FILE = "inventaires.json"
 HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
 HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 
-ADMIN_CREDENTIALS = {"admin": "mon_mdp_super_secret"}
+ADMIN_CREDENTIALS = {"admin": "Dreame12"}
 
 # ==========================
 # INITIALISATION SESSION
