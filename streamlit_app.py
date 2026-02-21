@@ -7,7 +7,7 @@ import random
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
-        df = pd.read_csv(nom_fichier, sep=";", encoding="cp1252", low_memory=False)
+        df = pd.read_csv(nom_fichier, sep=";", encoding="utf-8-sig", low_memory=False)
     except FileNotFoundError:
         st.warning(f"⚠ Fichier {nom_fichier} introuvable.")
         return pd.DataFrame()
