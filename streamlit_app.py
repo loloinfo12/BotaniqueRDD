@@ -32,6 +32,8 @@ st.markdown("""
 }
 .card h3 {
     color: #7CFC00;
+    cursor: help;
+    text-decoration: underline dotted;
 }
 .card p {
     color: #f0f0f0;
@@ -215,11 +217,11 @@ elif st.session_state.role == "admin":
                 st.session_state.last_tirage = tirage
 
                 for _, row in tirage.iterrows():
+                    info_bulle = f"Usage: {row['Usage']} | Habitat: {row['Habitat']} | Rareté: {row['Rarete']} | Prolifération: {row['Proliferation']} | Infos: {row['Informations']}"
+
                     st.markdown(f"""
                     <div class="card">
-                    <h3>{row['Nom']}</h3>
-                    <p><b>Habitat :</b> {row['Habitat']}</p>
-                    <p><b>Usage :</b> {row['Usage']}</p>
+                    <h3 title="{info_bulle}">{row['Nom']}</h3>
                     <p><b>Rareté :</b> {row['Rarete']}</p>
                     </div>
                     """, unsafe_allow_html=True)
