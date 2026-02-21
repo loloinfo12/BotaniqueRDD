@@ -1,4 +1,4 @@
-# streamlit_botaniquerdd_final.py
+# streamlit_botaniquerdd_final_cp1252.py
 
 import streamlit as st
 import pandas as pd
@@ -8,7 +8,7 @@ import os
 
 # ---------------------- Constants ----------------------
 INVENTAIRE_FILE = "inventaires.json"
-ADMIN_CREDENTIALS = {"admin": "Dreame12"}  # changer le mot de passe
+ADMIN_CREDENTIALS = {"admin": "mon_mdp_super_secret"}  # changer le mot de passe
 
 # ---------------------- Session State ----------------------
 for key in ["joueur", "role", "inventaires", "historique", "last_tirage"]:
@@ -37,7 +37,7 @@ charger_inventaires()
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
-        df = pd.read_csv(nom_fichier, sep=";", encoding="utf-8-sig", low_memory=False)
+        df = pd.read_csv(nom_fichier, sep=";", encoding="cp1252", low_memory=False)
     except Exception as e:
         st.error(f"Erreur lecture {nom_fichier} : {e}")
         return pd.DataFrame()
@@ -222,3 +222,4 @@ if st.session_state.joueur:
                 st.success(f"{quantite}x {plante_choisie} donnée(s) à {joueur_choisi} !")
         else:
             st.info("Aucun tirage disponible. Tirer des plantes pour pouvoir les distribuer.")
+
