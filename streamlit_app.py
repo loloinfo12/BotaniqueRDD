@@ -1,4 +1,4 @@
-# multi_player_botaniquerdd.py
+# streamlit_app_multi.py
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +19,23 @@ if "historique" not in st.session_state:
 if "compteur" not in st.session_state:
     st.session_state.compteur = 0
 
-# ----------- Chargement des fichiers -----------
+# ----------- Gestion JSON pour inventaire persistant -----------
+INVENTAIRE_FILE = "inventaires.json"
+
+def charger_inventaires():
+    if os.path.exists(INVENTAIRE_FILE):
+        with open(INVENTAIRE_FILE, "r") as f:
+            st.session_state.inventaires = json.load(f)
+    else:
+        st.session_state.inventaires = {}
+
+def sauvegarder_inventaires():
+    with open(INVENTAIRE_FILE, "w") as f:
+        json.dump(st.session_state.inventaires, f)
+
+charger_inventaires()
+
+# ----------- Chargement des CSV -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
@@ -27,19 +43,14 @@ def charger_fichier(nom_fichier):
     except Exception as e:
         st.error(f"Erreur lecture {nom_fichier} : {e}")
         return pd.DataFrame()
-
     if len(df.columns) > 8:
         df = df.iloc[:, :8]
-
     df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
-
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype("Int64")
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype("Int64")
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0).astype("Int64")
-
     return df
 
-# ----------- Chargement CSV -----------
 fichiers = {
     "Collines": charger_fichier("Collines.csv"),
     "Forêts": charger_fichier("Forets.csv"),
@@ -49,8 +60,7 @@ fichiers = {
     "Sous-sols": charger_fichier("Sous-sols.csv"),
 }
 
-# ----------- Utilitaires -----------
-
+# ----------- Fonctions utilitaires -----------
 def get_color_stars(rarete_val):
     if rarete_val < -6:
         return "red", "★★★"
@@ -78,48 +88,16 @@ usage_emojis = {
     "autre": "🍀"
 }
 
-# ----------- Gestion JSON pour inventaire persistant -----------
-
-INVENTAIRE_FILE = "inventaires.json"
-
-def charger_inventaires():
-    if os.path.exists(INVENTAIRE_FILE):
-        with open(INVENTAIRE_FILE, "r") as f:
-            st.session_state.inventaires = json.load(f)
-    else:
-        st.session_state.inventaires = {}
-
-def sauvegarder_inventaires():
-    with open(INVENTAIRE_FILE, "w") as f:
-        json.dump(st.session_state.inventaires, f)
-
-# ----------- Connexion joueur -----------
-st.title("🌱 Mini-Jeu de Plantes Multi-joueurs")
-
-charger_inventaires()
-
-if st.session_state.joueur is None:
-    pseudo = st.text_input("Entrez votre pseudo :")
-    if st.button("Se connecter"):
-        st.session_state.joueur = pseudo
-        if pseudo not in st.session_state.inventaires:
-            st.session_state.inventaires[pseudo] = {}
-        if pseudo not in st.session_state.historique:
-            st.session_state.historique[pseudo] = []
-        st.experimental_rerun()
-else:
-    st.write(f"🎮 Connecté en tant que : **{st.session_state.joueur}**")
-
-# ----------- Tirage et distribution -----------
-
 def tirer_plantes(df, nb, env):
     habitat_emoji, habitat_color = get_habitat_color_emoji(env)
     resultat_html = ""
     max_val = int(df["Fin"].max())
+    tirage_result_total = pd.DataFrame()
 
     for _ in range(nb):
         tirage = random.randint(1, max_val)
         tirage_result = df[(df["Debut"] <= tirage) & (df["Fin"] >= tirage)]
+        tirage_result_total = pd.concat([tirage_result_total, tirage_result], ignore_index=True)
         resultat_html += f"<p>🎲 Tirage aléatoire : {tirage}</p>"
 
         if tirage_result.empty:
@@ -129,7 +107,6 @@ def tirer_plantes(df, nb, env):
                 rarete_color, stars = get_color_stars(ligne["Rarete"])
                 usage = str(ligne["Usage"]).lower()
                 emoji_usage = usage_emojis.get(usage, usage_emojis["autre"])
-
                 texte_html = f"""
                 <div style="
                     background-color:{habitat_color};
@@ -147,16 +124,30 @@ def tirer_plantes(df, nb, env):
                 """
                 resultat_html += texte_html
 
-    return resultat_html, tirage_result
+    return resultat_html, tirage_result_total
 
-# ----------- Interface tirages -----------
+# ----------- Connexion joueur -----------
+st.title("🌱 Mini-Jeu de Plantes Multi-joueurs")
 
+if st.session_state.joueur is None:
+    pseudo = st.text_input("Entrez votre pseudo :")
+    if st.button("Se connecter"):
+        st.session_state.joueur = pseudo
+        # Initialisation sécurisée
+        if pseudo not in st.session_state.inventaires:
+            st.session_state.inventaires[pseudo] = {}
+        if pseudo not in st.session_state.historique:
+            st.session_state.historique[pseudo] = []
+        st.experimental_rerun()
+else:
+    st.write(f"🎮 Connecté en tant que : **{st.session_state.joueur}**")
+
+# ----------- Tirages -----------
 env = st.selectbox("Choisissez un environnement :", list(fichiers.keys()))
 df = fichiers.get(env)
 
 col1, col2, col3 = st.columns(3)
 nb_plantes = 0
-tirage_result = pd.DataFrame()
 
 if col1.button("Tirer 1 plante"):
     nb_plantes = 1
@@ -168,9 +159,9 @@ if col3.button("Tirer 5 plantes"):
 if nb_plantes > 0 and not df.empty:
     resultat_html, tirage_result = tirer_plantes(df, nb_plantes, env)
     st.markdown(resultat_html, unsafe_allow_html=True)
-    st.session_state.last_tirage = tirage_result  # dernier tirage pour distribution
+    st.session_state.last_tirage = tirage_result  # pour distribution
 
-# ----------- Distribution admin -----------
+# ----------- Distribution manuelle -----------
 
 st.divider()
 st.subheader("🧑‍🌾 Distribution manuelle")
@@ -182,43 +173,54 @@ if joueurs and "last_tirage" in st.session_state:
     plante_choisie = st.selectbox("Plante à distribuer", plantes_disponibles)
 
     if st.button("Distribuer"):
+        # Initialisation sécurisée
+        if joueur_choisi not in st.session_state.inventaires:
+            st.session_state.inventaires[joueur_choisi] = {}
+        if joueur_choisi not in st.session_state.historique:
+            st.session_state.historique[joueur_choisi] = []
+
         inventaire = st.session_state.inventaires[joueur_choisi]
         inventaire[plante_choisie] = inventaire.get(plante_choisie, 0) + 1
         st.session_state.historique[joueur_choisi].append(plante_choisie)
         sauvegarder_inventaires()
         st.success(f"{plante_choisie} donnée à {joueur_choisi} !")
 
-# ----------- Historique et inventaire -----------
+# ----------- Inventaire et historique joueur -----------
 
 st.divider()
-st.subheader(f"📜 Historique et inventaire de {st.session_state.joueur}")
+st.subheader(f"📜 Inventaire et historique de {st.session_state.joueur}")
 
-# Inventaire
-inventaire = st.session_state.inventaires[st.session_state.joueur]
+# Sécurisation accès inventaire
+joueur = st.session_state.joueur
+if joueur not in st.session_state.inventaires:
+    st.session_state.inventaires[joueur] = {}
+if joueur not in st.session_state.historique:
+    st.session_state.historique[joueur] = []
+
+inventaire = st.session_state.inventaires[joueur]
+hist = st.session_state.historique[joueur]
+
 if inventaire:
     st.table(pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"]))
 
-# Historique
-hist = st.session_state.historique[st.session_state.joueur]
 if hist:
     with st.expander("📂 Historique des plantes reçues"):
         for p in hist:
             st.markdown(f"- {p}")
 
-# Boutons gestion
 colA, colB = st.columns(2)
 if colA.button("🗑️ Vider inventaire et historique"):
-    st.session_state.inventaires[st.session_state.joueur] = {}
-    st.session_state.historique[st.session_state.joueur] = []
+    st.session_state.inventaires[joueur] = {}
+    st.session_state.historique[joueur] = []
     sauvegarder_inventaires()
     st.experimental_rerun()
 
 if colB.button("📥 Télécharger inventaire CSV"):
-    df_inv = pd.DataFrame(list(st.session_state.inventaires[st.session_state.joueur].items()),
-                          columns=["Plante", "Quantité"])
+    df_inv = pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"])
     st.download_button(
         "Télécharger",
         df_inv.to_csv(index=False, sep=";"),
-        file_name=f"inventaire_{st.session_state.joueur}.csv",
+        file_name=f"inventaire_{joueur}.csv",
         mime="text/csv"
     )
+
