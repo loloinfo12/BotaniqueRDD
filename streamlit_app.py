@@ -1,4 +1,4 @@
-# streamlit_botaniquerdd_full.py
+# streamlit_botaniquerdd_final.py
 
 import streamlit as st
 import pandas as pd
@@ -7,25 +7,18 @@ import json
 import os
 
 # ---------------------- Constants ----------------------
-
 INVENTAIRE_FILE = "inventaires.json"
-
-# Compte administrateur
 ADMIN_CREDENTIALS = {"admin": "Dreame12"}  # changer le mot de passe
 
 # ---------------------- Session State ----------------------
-
-for key in ["joueur", "role", "inventaires", "historique", "compteur", "last_tirage"]:
+for key in ["joueur", "role", "inventaires", "historique", "last_tirage"]:
     if key not in st.session_state:
         if key in ["inventaires", "historique"]:
             st.session_state[key] = {}
-        elif key == "compteur":
-            st.session_state[key] = 0
         else:
             st.session_state[key] = None
 
 # ---------------------- Chargement JSON ----------------------
-
 def charger_inventaires():
     if os.path.exists(INVENTAIRE_FILE):
         with open(INVENTAIRE_FILE, "r") as f:
@@ -41,11 +34,10 @@ def sauvegarder_inventaires():
 charger_inventaires()
 
 # ---------------------- Chargement CSV ----------------------
-
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
-        df = pd.read_csv(nom_fichier, sep=";", encoding="cp1252", low_memory=False)
+        df = pd.read_csv(nom_fichier, sep=";", encoding="utf-8-sig", low_memory=False)
     except Exception as e:
         st.error(f"Erreur lecture {nom_fichier} : {e}")
         return pd.DataFrame()
@@ -67,7 +59,6 @@ fichiers = {
 }
 
 # ---------------------- Fonctions utilitaires ----------------------
-
 def get_color_stars(rarete_val):
     if rarete_val < -6:
         return "red", "★★★"
@@ -134,7 +125,6 @@ def tirer_plantes(df, nb, env):
     return resultat_html, tirage_result_total
 
 # ---------------------- Login / Inscription ----------------------
-
 st.title("🌱 Mini-Jeu de Plantes Multi-joueurs")
 
 if st.session_state.joueur is None:
@@ -145,7 +135,6 @@ if st.session_state.joueur is None:
         bouton_signup = st.form_submit_button("Créer un compte")
 
         if bouton_login:
-            # Admin
             if pseudo in ADMIN_CREDENTIALS and mdp == ADMIN_CREDENTIALS[pseudo]:
                 st.session_state.joueur = pseudo
                 st.session_state.role = "admin"
@@ -174,12 +163,28 @@ if st.session_state.joueur is None:
 else:
     st.write(f"🎮 Connecté : {st.session_state.joueur} ({st.session_state.role})")
 
-# ---------------------- Interface joueur / admin ----------------------
-
+# ---------------------- Interface ----------------------
 if st.session_state.joueur:
 
-    # ---------------- Joueur ----------------
+    # --------- Joueurs uniquement ---------
     if st.session_state.role == "joueur":
+        st.subheader("📜 Votre inventaire")
+        inventaire = st.session_state.inventaires.get(st.session_state.joueur, {})
+        historique = st.session_state.historique.get(st.session_state.joueur, [])
+        
+        if inventaire:
+            st.table(pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"]))
+        if historique:
+            with st.expander("📂 Historique des plantes reçues"):
+                for plante in historique:
+                    st.markdown(f"- {plante}")
+
+    # --------- Admin uniquement ---------
+    elif st.session_state.role == "admin":
+        st.subheader("🧑‍🌾 Administration")
+        joueurs = list(st.session_state.inventaires.keys())
+        
+        # Tirage
         env = st.selectbox("Choisissez un environnement :", list(fichiers.keys()))
         df = fichiers.get(env)
         col1, col2, col3 = st.columns(3)
@@ -196,48 +201,24 @@ if st.session_state.joueur:
             st.markdown(resultat_html, unsafe_allow_html=True)
             st.session_state.last_tirage = tirage_result
 
-        st.subheader("📜 Inventaire et historique")
-        inventaire = st.session_state.inventaires[st.session_state.joueur]
-        hist = st.session_state.historique[st.session_state.joueur]
+        # Distribution sécurisée
+        if ("last_tirage" in st.session_state and
+            st.session_state.last_tirage is not None and
+            not st.session_state.last_tirage.empty and
+            "Nom" in st.session_state.last_tirage.columns):
 
-        if inventaire:
-            st.table(pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"]))
-
-        if hist:
-            with st.expander("📂 Historique des plantes reçues"):
-                for p in hist:
-                    st.markdown(f"- {p}")
-
-        colA, colB = st.columns(2)
-        if colA.button("🗑️ Vider inventaire et historique"):
-            st.session_state.inventaires[st.session_state.joueur] = {}
-            st.session_state.historique[st.session_state.joueur] = []
-            sauvegarder_inventaires()
-
-        if colB.button("📥 Télécharger inventaire CSV"):
-            df_inv = pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"])
-            st.download_button(
-                "Télécharger",
-                df_inv.to_csv(index=False, sep=";"),
-                file_name=f"inventaire_{st.session_state.joueur}.csv",
-                mime="text/csv"
-            )
-
-    # ---------------- Admin ----------------
-    elif st.session_state.role == "admin":
-        st.subheader("🧑‍🌾 Administration")
-        joueurs = list(st.session_state.inventaires.keys())
-        st.write(f"Joueurs : {', '.join(joueurs)}")
-
-        if "last_tirage" in st.session_state:
-            joueur_choisi = st.selectbox("À quel joueur donner la plante ?", joueurs)
+            joueur_choisi = st.selectbox("Attribuer à quel joueur ?", joueurs)
             plantes_disponibles = st.session_state.last_tirage["Nom"].tolist()
             plante_choisie = st.selectbox("Plante à distribuer", plantes_disponibles)
+            quantite = st.number_input("Quantité à donner", min_value=1, max_value=10, value=1)
+            
             if st.button("Distribuer"):
                 st.session_state.inventaires.setdefault(joueur_choisi, {})
                 st.session_state.historique.setdefault(joueur_choisi, [])
                 inventaire = st.session_state.inventaires[joueur_choisi]
-                inventaire[plante_choisie] = inventaire.get(plante_choisie, 0) + 1
-                st.session_state.historique[joueur_choisi].append(plante_choisie)
+                inventaire[plante_choisie] = inventaire.get(plante_choisie, 0) + quantite
+                st.session_state.historique[joueur_choisi].extend([plante_choisie]*quantite)
                 sauvegarder_inventaires()
-                st.success(f"{plante_choisie} donnée à {joueur_choisi} !")
+                st.success(f"{quantite}x {plante_choisie} donnée(s) à {joueur_choisi} !")
+        else:
+            st.info("Aucun tirage disponible. Tirer des plantes pour pouvoir les distribuer.")
