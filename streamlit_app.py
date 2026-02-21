@@ -8,7 +8,7 @@ import os
 
 # ---------------------- Constants ----------------------
 INVENTAIRE_FILE = "inventaires.json"
-ADMIN_CREDENTIALS = {"admin": "mon_mdp_super_secret"}  # changer le mot de passe
+ADMIN_CREDENTIALS = {"admin": "Dreame12"}  # changer le mot de passe
 
 # ---------------------- Session State ----------------------
 for key in ["joueur", "role", "inventaires", "historique", "last_tirage"]:
