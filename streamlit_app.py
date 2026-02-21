@@ -1,16 +1,15 @@
-# sauvegarder ce fichier comme app.py
+# app.py
 import streamlit as st
 import pandas as pd
-import chardet 
 import random
 
 # ----------- Chargement des fichiers -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
-      try:
+    try:
         # Lire en latin1 pour récupérer les caractères spéciaux
         df = pd.read_csv(nom_fichier, sep=";", encoding="latin1", low_memory=False)
-        
+
         # Réencoder toutes les colonnes texte en UTF-8
         for col in df.select_dtypes(include="object").columns:
             df[col] = df[col].apply(lambda x: str(x).encode('latin1').decode('utf-8', errors='replace'))
