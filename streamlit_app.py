@@ -7,8 +7,7 @@ import random
 # ----------- Chargement des fichiers -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
-    try:
-        try:
+     try:
         # Lire en latin1 pour récupérer tous les caractères accentués
         df = pd.read_csv(nom_fichier, sep=";", encoding="latin1", low_memory=False)
         
