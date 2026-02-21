@@ -6,14 +6,15 @@ import random
 # ----------- Chargement des fichiers -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
-   try:
+    try:
         # Détection automatique de l'encodage
         with open(nom_fichier, 'rb') as f:
             result = chardet.detect(f.read())
             enc = result['encoding'] or 'utf-8'
-        
+
         # Lecture du CSV avec l'encodage détecté
         df = pd.read_csv(nom_fichier, sep=";", encoding=enc, low_memory=False)
+
     except FileNotFoundError:
         st.warning(f"⚠ Fichier {nom_fichier} introuvable.")
         return pd.DataFrame()
