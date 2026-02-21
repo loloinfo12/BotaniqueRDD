@@ -7,21 +7,21 @@ import random
 # ----------- Chargement des fichiers -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
-     try:
-        # Lire en latin1 pour récupérer tous les caractères accentués
+      try:
+        # Lire en latin1 pour récupérer les caractères spéciaux
         df = pd.read_csv(nom_fichier, sep=";", encoding="latin1", low_memory=False)
         
-        # Réencoder toutes les colonnes de type texte en UTF-8
+        # Réencoder toutes les colonnes texte en UTF-8
         for col in df.select_dtypes(include="object").columns:
             df[col] = df[col].apply(lambda x: str(x).encode('latin1').decode('utf-8', errors='replace'))
-            
+
     except FileNotFoundError:
         st.warning(f"⚠ Fichier {nom_fichier} introuvable.")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erreur lors de la lecture de {nom_fichier} : {e}")
         return pd.DataFrame()
-    
+
     # Limiter à 8 colonnes et renommer
     if len(df.columns) > 8:
         df = df.iloc[:, :8]
