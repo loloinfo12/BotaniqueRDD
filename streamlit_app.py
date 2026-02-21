@@ -8,21 +8,21 @@ import random
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
-        # Détection automatique de l'encodage
-        with open(nom_fichier, 'rb') as f:
-            result = chardet.detect(f.read())
-            enc = result['encoding'] or 'utf-8'
-
-        # Lecture du CSV avec l'encodage détecté
-        df = pd.read_csv(nom_fichier, sep=";", encoding=enc, low_memory=False)
-
+        try:
+        # Lire en latin1 pour récupérer tous les caractères accentués
+        df = pd.read_csv(nom_fichier, sep=";", encoding="latin1", low_memory=False)
+        
+        # Réencoder toutes les colonnes de type texte en UTF-8
+        for col in df.select_dtypes(include="object").columns:
+            df[col] = df[col].apply(lambda x: str(x).encode('latin1').decode('utf-8', errors='replace'))
+            
     except FileNotFoundError:
         st.warning(f"⚠ Fichier {nom_fichier} introuvable.")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erreur lors de la lecture de {nom_fichier} : {e}")
         return pd.DataFrame()
-
+    
     # Limiter à 8 colonnes et renommer
     if len(df.columns) > 8:
         df = df.iloc[:, :8]
