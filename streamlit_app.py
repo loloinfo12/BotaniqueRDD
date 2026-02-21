@@ -1,4 +1,4 @@
-# streamlit_botaniquerdd_multi_accounts.py
+# streamlit_botaniquerdd_full.py
 
 import streamlit as st
 import pandas as pd
@@ -9,8 +9,9 @@ import os
 # ---------------------- Constants ----------------------
 
 INVENTAIRE_FILE = "inventaires.json"
-# Mot de passe administrateur
-ADMIN_CREDENTIALS = {"admin": "password"}  # à changer en production
+
+# Compte administrateur
+ADMIN_CREDENTIALS = {"admin": "mon_mdp_super_secret"}  # changer le mot de passe
 
 # ---------------------- Session State ----------------------
 
@@ -132,7 +133,7 @@ def tirer_plantes(df, nb, env):
 
     return resultat_html, tirage_result_total
 
-# ---------------------- Page login / inscription ----------------------
+# ---------------------- Login / Inscription ----------------------
 
 st.title("🌱 Mini-Jeu de Plantes Multi-joueurs")
 
@@ -155,7 +156,7 @@ if st.session_state.joueur is None:
                 st.success(f"Connecté en tant que joueur : {pseudo}")
             else:
                 st.warning("Pseudo non trouvé, veuillez créer un compte")
-            # Initialisation inventaire
+            
             st.session_state.inventaires.setdefault(st.session_state.joueur, {})
             st.session_state.historique.setdefault(st.session_state.joueur, [])
 
@@ -173,12 +174,12 @@ if st.session_state.joueur is None:
 else:
     st.write(f"🎮 Connecté : {st.session_state.joueur} ({st.session_state.role})")
 
-# ---------------------- Interface joueur ----------------------
+# ---------------------- Interface joueur / admin ----------------------
 
 if st.session_state.joueur:
 
+    # ---------------- Joueur ----------------
     if st.session_state.role == "joueur":
-        # ---------- Tirages ----------
         env = st.selectbox("Choisissez un environnement :", list(fichiers.keys()))
         df = fichiers.get(env)
         col1, col2, col3 = st.columns(3)
@@ -195,7 +196,6 @@ if st.session_state.joueur:
             st.markdown(resultat_html, unsafe_allow_html=True)
             st.session_state.last_tirage = tirage_result
 
-        # ---------- Inventaire ----------
         st.subheader("📜 Inventaire et historique")
         inventaire = st.session_state.inventaires[st.session_state.joueur]
         hist = st.session_state.historique[st.session_state.joueur]
@@ -223,8 +223,8 @@ if st.session_state.joueur:
                 mime="text/csv"
             )
 
+    # ---------------- Admin ----------------
     elif st.session_state.role == "admin":
-        # ---------- Administration ----------
         st.subheader("🧑‍🌾 Administration")
         joueurs = list(st.session_state.inventaires.keys())
         st.write(f"Joueurs : {', '.join(joueurs)}")
