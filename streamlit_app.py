@@ -6,17 +6,31 @@ import random
 # ----------- Chargement des fichiers -----------
 @st.cache_data
 def charger_fichier(nom_fichier):
-    try:
-        df = pd.read_csv(nom_fichier, sep=";", encoding="latin1", low_memory=False)
+   try:
+        # Détection automatique de l'encodage
+        with open(nom_fichier, 'rb') as f:
+            result = chardet.detect(f.read())
+            enc = result['encoding'] or 'utf-8'
+        
+        # Lecture du CSV avec l'encodage détecté
+        df = pd.read_csv(nom_fichier, sep=";", encoding=enc, low_memory=False)
     except FileNotFoundError:
         st.warning(f"⚠ Fichier {nom_fichier} introuvable.")
         return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur lors de la lecture de {nom_fichier} : {e}")
+        return pd.DataFrame()
+
+    # Limiter à 8 colonnes et renommer
     if len(df.columns) > 8:
         df = df.iloc[:, :8]
     df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
+
+    # Conversion des colonnes numériques
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype("Int64")
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype("Int64")
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0).astype("Int64")
+
     return df
 
 # ----------- Données -----------
