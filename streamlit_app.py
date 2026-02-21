@@ -7,7 +7,7 @@ import random
 @st.cache_data
 def charger_fichier(nom_fichier):
     try:
-        df = pd.read_csv(nom_fichier, sep=";", encoding="utf-8")
+        df = pd.read_csv(nom_fichier, sep=";", encoding="cp1252")
     except Exception as e:
         st.error(f"Erreur lecture {nom_fichier} : {e}")
         return pd.DataFrame()
