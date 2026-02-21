@@ -13,7 +13,7 @@ INVENTAIRE_FILE = "inventaires.json"
 HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
 HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 
-ADMIN_CREDENTIALS = {"admin": "Dreame12"}
+ADMIN_CREDENTIALS = {"admin": "mon_mdp_super_secret"}
 
 # ==========================
 # INITIALISATION SESSION
@@ -23,13 +23,12 @@ for key in [
     "joueur",
     "role",
     "inventaires",
-    "historique",
     "last_tirage",
     "historique_tirages_admin",
     "historique_distributions_admin"
 ]:
     if key not in st.session_state:
-        if key in ["inventaires", "historique"]:
+        if key in ["inventaires"]:
             st.session_state[key] = {}
         elif key in ["historique_tirages_admin", "historique_distributions_admin"]:
             st.session_state[key] = []
@@ -66,12 +65,16 @@ def charger_fichier(nom_fichier):
     except Exception as e:
         st.error(f"Erreur lecture {nom_fichier} : {e}")
         return pd.DataFrame()
+
     if len(df.columns) > 8:
         df = df.iloc[:, :8]
+
     df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
+
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype("Int64")
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype("Int64")
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0).astype("Int64")
+
     return df
 
 fichiers = {
@@ -105,6 +108,7 @@ def tirer_plantes(df, nb):
 st.title("🌿 Mini-Jeu Botanique Multi-Joueurs")
 
 if st.session_state.joueur is None:
+
     with st.form("login_form"):
         pseudo = st.text_input("Pseudo")
         mdp = st.text_input("Mot de passe (admin uniquement)", type="password")
@@ -139,9 +143,11 @@ else:
 # ==========================
 
 if st.session_state.role == "joueur":
+
     st.subheader("📦 Votre inventaire")
 
     inventaire = st.session_state.inventaires.get(st.session_state.joueur, {})
+
     if inventaire:
         df_inv = pd.DataFrame(list(inventaire.items()), columns=["Plante", "Quantité"])
         st.table(df_inv)
@@ -157,15 +163,35 @@ elif st.session_state.role == "admin":
     st.subheader("🎲 Tirage des plantes")
 
     env = st.selectbox("Choisir environnement", list(fichiers.keys()))
-    nb = st.number_input("Nombre de plantes à tirer", 1, 10, 1)
 
-    if st.button("Tirer"):
+    col1, col2, col3 = st.columns(3)
+
+    tirage_effectue = False
+    nb_tirage = 0
+
+    with col1:
+        if st.button("🎲 Tirer 1"):
+            nb_tirage = 1
+            tirage_effectue = True
+
+    with col2:
+        if st.button("🎲 Tirer 3"):
+            nb_tirage = 3
+            tirage_effectue = True
+
+    with col3:
+        if st.button("🎲 Tirer 5"):
+            nb_tirage = 5
+            tirage_effectue = True
+
+    if tirage_effectue:
         df = fichiers[env]
-        tirage = tirer_plantes(df, nb)
+        tirage = tirer_plantes(df, nb_tirage)
         st.session_state.last_tirage = tirage
 
         if not tirage.empty:
-            st.dataframe(tirage)
+            st.write(f"### 🌿 Résultat du tirage ({nb_tirage})")
+            st.dataframe(tirage, use_container_width=True)
 
             for nom in tirage["Nom"].tolist():
                 entree = {
@@ -182,6 +208,7 @@ elif st.session_state.role == "admin":
     # ======================
 
     if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
+
         st.subheader("🎁 Distribution")
 
         joueur = st.selectbox("Choisir joueur", list(st.session_state.inventaires.keys()))
@@ -210,6 +237,7 @@ elif st.session_state.role == "admin":
     # ======================
 
     st.subheader("📜 Historique des tirages")
+
     if st.session_state.historique_tirages_admin:
         st.dataframe(pd.DataFrame(st.session_state.historique_tirages_admin))
         if st.button("Effacer historique tirages"):
@@ -218,6 +246,7 @@ elif st.session_state.role == "admin":
             st.success("Historique tirages effacé.")
 
     st.subheader("📦 Journal des distributions")
+
     if st.session_state.historique_distributions_admin:
         st.dataframe(pd.DataFrame(st.session_state.historique_distributions_admin))
         if st.button("Effacer journal distributions"):
@@ -240,4 +269,3 @@ elif st.session_state.role == "admin":
         df_stats_dist = pd.DataFrame(st.session_state.historique_distributions_admin)
         st.write("Distributions par joueur")
         st.bar_chart(df_stats_dist["Joueur"].value_counts())
-
