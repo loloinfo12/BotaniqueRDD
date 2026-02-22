@@ -157,7 +157,7 @@ if st.session_state.role == "joueur":
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
-  with tabs_joueur[0]:
+ with tabs_joueur[0]:
     st.subheader("📦 Mon Inventaire")
 
     if inventaire:
