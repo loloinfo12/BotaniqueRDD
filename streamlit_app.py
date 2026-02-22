@@ -16,7 +16,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
-ADMIN_HASH = "COLLER_LE_HASH_ICI"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
 
 # ==========================
 # SESSION INIT
