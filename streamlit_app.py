@@ -158,122 +158,67 @@ if st.session_state.role == "joueur":
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
     with tabs_joueur[0]:
-    st.subheader("📦 Mon Inventaire")
+        st.subheader("📦 Mon Inventaire")
+        if inventaire:
+            data_inv = []
+            for plante, qt in inventaire.items():
+                type_plante = "Inconnu"
+                for df in fichiers.values():
+                    res = df[df["Nom"] == plante]
+                    if not res.empty:
+                        type_plante = res.iloc[0]["Usage"]
+                        break
+                usage_lower = type_plante.lower()
+                if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
+                elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
+                elif "aliment" in usage_lower: icone="🍽️"
+                elif "arom" in usage_lower: icone="🌿"
+                elif "mag" in usage_lower: icone="✨"
+                elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
+                else: icone="🌱"
+                data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
+            st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
 
-    if inventaire:
-
-        herbes = []
-        champignons = []
-
-        # Séparation herbes / champignons
-        for plante, qt in inventaire.items():
-            type_plante = "Inconnu"
+            st.divider()
+            st.subheader("🌿 Utiliser une plante")
+            plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
+            plante_info = None
             for df in fichiers.values():
-                res = df[df["Nom"] == plante]
+                res = df[df["Nom"] == plante_select]
                 if not res.empty:
-                    type_plante = res.iloc[0]["Usage"]
+                    plante_info = res.iloc[0]
                     break
-
-            usage_lower = type_plante.lower()
-
-            # Détection type
-            if "champignon" in usage_lower:
-                champignons.append((plante, qt, type_plante))
-            else:
-                herbes.append((plante, qt, type_plante))
-
-        # ==========================
-        # AFFICHAGE HERBES
-        # ==========================
-        if herbes:
-            st.markdown("### 🌱 Herbes")
-            for plante, qt, type_plante in herbes:
+            if plante_info is not None:
                 st.markdown(f"""
-                <div class="card herbe">
-                <h3>🌱 {plante} (x{qt})</h3>
-                <p><b>Type :</b> {type_plante}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-        # ==========================
-        # AFFICHAGE CHAMPIGNONS
-        # ==========================
-        if champignons:
-            st.markdown("### 🍄 Champignons")
-            for plante, qt, type_plante in champignons:
-                st.markdown(f"""
-                <div class="card champignon">
-                <h3>🍄 {plante} (x{qt})</h3>
-                <p><b>Type :</b> {type_plante}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-        st.divider()
-
-        # ==========================
-        # UTILISATION
-        # ==========================
-        st.subheader("🌿 Utiliser une plante")
-
-        plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
-
-        plante_info = None
-        for df in fichiers.values():
-            res = df[df["Nom"] == plante_select]
-            if not res.empty:
-                plante_info = res.iloc[0]
-                break
-
-        if plante_info is not None:
-            st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
 **Habitat :** {plante_info['Habitat']}  
 **Rareté :** {plante_info['Rarete']}  
 **Prolifération :** {plante_info['Proliferation']}  
 **Informations :** {plante_info['Informations']}
 """)
-
-        max_qt = inventaire[plante_select]
-        quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
-
-        if st.button("Utiliser"):
-            usage = plante_info["Usage"].lower()
-
-            if any(m in usage for m in ["soin","médic","guér","curatif"]):
-                message=f"❤️ {plante_select} utilisée pour ses vertus médicinales."
-            elif any(m in usage for m in ["tox","poison"]):
-                message=f"☠️ {plante_select} manipulée avec prudence (toxique)."
-            elif "aliment" in usage:
-                message=f"🍽️ {plante_select} consommée."
-            elif "arom" in usage:
-                message=f"🌿 {plante_select} utilisée pour son arôme."
-            elif "mag" in usage:
-                message=f"✨ {plante_select} intégrée à un rituel."
-            elif "bois" in usage or "résine" in usage:
-                message=f"🪵 {plante_select} transformée pour un usage matériel."
-            else:
-                message=f"🌱 {plante_select} utilisée."
-
-            st.info(message)
-
-            inventaire[plante_select] -= quantite_utilisee
-            if inventaire[plante_select] <= 0:
-                del inventaire[plante_select]
-
-            st.session_state.inventaires[joueur] = inventaire
-            sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
-
-            st.session_state.journal_usages[joueur].append({
-                "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Plante": plante_select,
-                "Quantité": quantite_utilisee,
-                "Effet": message
-            })
-
-            sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
-
-    else:
-        st.info("Inventaire vide.")
+            max_qt = inventaire[plante_select]
+            quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
+            if st.button("Utiliser"):
+                usage = plante_info["Usage"].lower()
+                if any(m in usage for m in ["soin","médic","guér","curatif"]): message=f"❤️ {plante_select} utilisée pour ses vertus médicinales."
+                elif any(m in usage for m in ["tox","poison"]): message=f"☠️ {plante_select} manipulée avec prudence (toxique)."
+                elif "aliment" in usage: message=f"🍽️ {plante_select} consommée."
+                elif "arom" in usage: message=f"🌿 {plante_select} utilisée pour son arôme."
+                elif "mag" in usage: message=f"✨ {plante_select} intégrée à un rituel."
+                elif "bois" in usage or "résine" in usage: message=f"🪵 {plante_select} transformée pour un usage matériel."
+                else: message=f"🌱 {plante_select} utilisée."
+                st.info(message)
+                inventaire[plante_select] -= quantite_utilisee
+                if inventaire[plante_select] <= 0: del inventaire[plante_select]
+                st.session_state.inventaires[joueur] = inventaire
+                sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+                st.session_state.journal_usages[joueur].append({
+                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Plante": plante_select,
+                    "Quantité": quantite_utilisee,
+                    "Effet": message
+                })
+                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
