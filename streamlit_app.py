@@ -24,12 +24,14 @@ ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
 st.markdown("""
 <style>
 .card {
-    background-color: #1e1e1e;
     padding: 20px;
     border-radius: 15px;
     margin-bottom: 15px;
     box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+    color: #f0f0f0;
 }
+.card.herbe { background-color: #0B3D0B; }  /* vert foncé */
+.card.champignon { background-color: #3E2F2F; } /* marron foncé */
 .card h3 { color: #7CFC00; }
 .card p { color: #f0f0f0; }
 </style>
@@ -75,12 +77,15 @@ def charger_fichier(nom):
         df = pd.read_csv(nom, sep=";", encoding="cp1252")
     except:
         return pd.DataFrame()
+
     df = df.iloc[:, :8]
     df.columns = ["Nom","Usage","Habitat","Informations",
                   "Rarete","Debut","Fin","Proliferation"]
+
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
+
     return df
 
 fichiers = {
@@ -147,11 +152,15 @@ if st.session_state.role == "joueur":
 
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
+
     if joueur not in st.session_state.journal_usages:
         st.session_state.journal_usages[joueur] = []
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
+    # ======================
+    # ONGLET INVENTAIRE
+    # ======================
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         if inventaire:
@@ -163,7 +172,6 @@ if st.session_state.role == "joueur":
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
                         break
-                # Icônes plus claires
                 usage_lower = type_plante.lower()
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
@@ -216,6 +224,9 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
+    # ======================
+    # ONGLET JOURNAL
+    # ======================
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
@@ -239,17 +250,15 @@ elif st.session_state.role == "admin":
             if c1.button("1"): nb=1
             if c2.button("3"): nb=3
             if c3.button("5"): nb=5
-            # Tirage
             if nb>0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
                 for _,row in tirage.iterrows():
                     type_lower = row['Usage'].lower()
-                    row_type = "🌱 Herbe"
-                    if "champignon" in type_lower: row_type = "🍄 Champignon"
-                    elif "herbe" in type_lower: row_type = "🌱 Herbe"
+                    if "champignon" in type_lower: row_class = "champignon"; row_type = "🍄 Champignon"
+                    else: row_class = "herbe"; row_type = "🌱 Herbe"
                     st.markdown(f"""
-<div class="card">
+<div class="card {row_class}">
 <h3>{row_type} {row['Nom']}</h3>
 <p><b>Usage :</b> {row['Usage']}</p>
 <p><b>Habitat :</b> {row['Habitat']}</p>
@@ -264,24 +273,6 @@ elif st.session_state.role == "admin":
                         "Plante":row["Nom"]
                     })
                 sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
-            # Affichage du dernier tirage permanent
-            elif isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
-                st.info("Dernier tirage :")
-                for _,row in st.session_state.last_tirage.iterrows():
-                    type_lower = row['Usage'].lower()
-                    row_type = "🌱 Herbe"
-                    if "champignon" in type_lower: row_type = "🍄 Champignon"
-                    elif "herbe" in type_lower: row_type = "🌱 Herbe"
-                    st.markdown(f"""
-<div class="card">
-<h3>{row_type} {row['Nom']}</h3>
-<p><b>Usage :</b> {row['Usage']}</p>
-<p><b>Habitat :</b> {row['Habitat']}</p>
-<p><b>Rareté :</b> {row['Rarete']}</p>
-<p><b>Prolifération :</b> {row['Proliferation']}</p>
-<p><b>Informations :</b><br>{row['Informations']}</p>
-</div>
-""", unsafe_allow_html=True)
         with col_right:
             st.subheader("🎁 Distribution")
             if isinstance(st.session_state.last_tirage,pd.DataFrame) and not st.session_state.last_tirage.empty:
