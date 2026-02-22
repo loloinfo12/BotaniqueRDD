@@ -16,7 +16,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
 
 # ==========================
 # STYLE
@@ -24,16 +24,16 @@ ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
 st.markdown("""
 <style>
 .card {
+    background-color: #1e1e1e;
     padding: 20px;
     border-radius: 15px;
     margin-bottom: 15px;
     box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
-    color: #f0f0f0;
 }
-.card.herbe { background-color: #0B3D0B; }  /* vert foncé */
-.card.champignon { background-color: #3E2F2F; } /* marron foncé */
-.card h3 { color: #7CFC00; }
-.card p { color: #f0f0f0; }
+.card h3 { color: #7CFC00; margin-bottom:5px; }
+.card p { color: #f0f0f0; margin:2px 0; }
+.card.champignon { border-left: 5px solid #ff6600; }
+.card.herbe { border-left: 5px solid #32cd32; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -147,8 +147,7 @@ if st.session_state.joueur is None:
 # ==========================
 if st.session_state.role == "joueur":
 
-    # 🔁 Rafraîchissement automatique toutes les 5 secondes
-    st_autorefresh(interval=5000, key="raffraichissement_auto")
+    st_autorefresh(interval=5000, key="raffraichissement_auto")  # 🔁 Rafraîchissement toutes les 5s
 
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
@@ -158,9 +157,6 @@ if st.session_state.role == "joueur":
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
-    # ======================
-    # ONGLET INVENTAIRE
-    # ======================
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         if inventaire:
@@ -224,9 +220,6 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
-    # ======================
-    # ONGLET JOURNAL
-    # ======================
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
@@ -250,10 +243,21 @@ elif st.session_state.role == "admin":
             if c1.button("1"): nb=1
             if c2.button("3"): nb=3
             if c3.button("5"): nb=5
-            if nb>0:
+
+            # Nouveau tirage
+            if nb > 0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
-                for _,row in tirage.iterrows():
+                st.session_state.historique_tirages_admin.extend([{
+                    "Date":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Env":env,
+                    "Plante":row["Nom"]
+                } for _, row in tirage.iterrows()])
+                sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
+
+            # Affichage du dernier tirage
+            if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
+                for _, row in st.session_state.last_tirage.iterrows():
                     type_lower = row['Usage'].lower()
                     if "champignon" in type_lower: row_class = "champignon"; row_type = "🍄 Champignon"
                     else: row_class = "herbe"; row_type = "🌱 Herbe"
@@ -267,23 +271,20 @@ elif st.session_state.role == "admin":
 <p><b>Informations :</b><br>{row['Informations']}</p>
 </div>
 """, unsafe_allow_html=True)
-                    st.session_state.historique_tirages_admin.append({
-                        "Date":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Env":env,
-                        "Plante":row["Nom"]
-                    })
-                sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
+
         with col_right:
             st.subheader("🎁 Distribution")
-            if isinstance(st.session_state.last_tirage,pd.DataFrame) and not st.session_state.last_tirage.empty:
+            if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 joueur = st.selectbox("Joueur", list(st.session_state.inventaires.keys()))
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
                 qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
                     inv = st.session_state.inventaires[joueur]
                     inv[plante] = inv.get(plante,0)+qte
+                    st.session_state.inventaires[joueur] = inv
                     sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
                     st.success("Distribution effectuée")
+
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
         if st.session_state.historique_tirages_admin:
