@@ -18,7 +18,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 # ADMIN
 # ==========================
 ADMIN_USER = "admin"
-ADMIN_HASH = "COLLER_LE_HASH_ICI"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
 
 # ==========================
 # SESSION INIT
@@ -177,14 +177,12 @@ if st.session_state.role == "joueur":
 
                 # Récupération type (Usage)
                 type_plante = "Inconnu"
-                plante_info = None
                 for df in fichiers.values():
                     if df.empty or "Nom" not in df.columns:
                         continue
                     res = df[df["Nom"] == plante]
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
-                        plante_info = res.iloc[0]
                         break
 
                 icon = get_usage_icon(type_plante)
@@ -202,6 +200,25 @@ if st.session_state.role == "joueur":
 
             plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
 
+            # ✅ Recherche des informations détaillées pour la plante sélectionnée
+            plante_info = None
+            for df in fichiers.values():
+                if df.empty or "Nom" not in df.columns:
+                    continue
+                res = df[df["Nom"] == plante_select]
+                if not res.empty:
+                    plante_info = res.iloc[0]
+                    break
+
+            if plante_info is not None:
+                st.markdown(f"""
+**Usage :** {plante_info['Usage']}  
+**Habitat :** {plante_info['Habitat']}  
+**Rareté :** {plante_info['Rarete']}  
+**Prolifération :** {plante_info['Proliferation']}  
+**Informations :** {plante_info['Informations']}
+""")
+
             max_qt = inventaire[plante_select]
             quantite_utilisee = st.number_input(
                 "Quantité à utiliser",
@@ -213,7 +230,8 @@ if st.session_state.role == "joueur":
             if st.button("Utiliser"):
 
                 if plante_info is not None:
-                    icon = get_usage_icon(plante_info["Usage"])
+                    usage = plante_info["Usage"]
+                    icon = get_usage_icon(usage)
                     message = f"{icon} {plante_select} utilisée."
 
                     st.info(message)
