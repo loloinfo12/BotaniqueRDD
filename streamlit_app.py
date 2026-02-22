@@ -162,24 +162,43 @@ if st.session_state.role == "joueur":
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         if inventaire:
-            data_inv = []
+            data_inv_herbes = []
+            data_inv_champignons = []
+
             for plante, qt in inventaire.items():
                 type_plante = "Inconnu"
+                infos = ""
                 for df in fichiers.values():
                     res = df[df["Nom"] == plante]
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
+                        infos = str(res.iloc[0]["Informations"]).lower()
                         break
+
                 usage_lower = type_plante.lower()
+                icone = "🌱"
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
                 elif "aliment" in usage_lower: icone="🍽️"
                 elif "arom" in usage_lower: icone="🌿"
                 elif "mag" in usage_lower: icone="✨"
                 elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
-                else: icone="🌱"
-                data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
-            st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
+                if "champignon" in usage_lower or "champignon" in infos: icone="🍄"
+                if "alchimie" in usage_lower or "alchimie" in infos: icone="🧪"
+
+                item = {"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt}
+
+                if icone in ["🍄","🧪"]:
+                    data_inv_champignons.append(item)
+                else:
+                    data_inv_herbes.append(item)
+
+            if data_inv_herbes:
+                st.markdown("### 🌿 Herbes")
+                st.dataframe(pd.DataFrame(data_inv_herbes), use_container_width=True, hide_index=True)
+            if data_inv_champignons:
+                st.markdown("### 🍄 Champignons / Alchimie")
+                st.dataframe(pd.DataFrame(data_inv_champignons), use_container_width=True, hide_index=True)
 
             st.divider()
             st.subheader("🌿 Utiliser une plante")
@@ -208,6 +227,8 @@ if st.session_state.role == "joueur":
                 elif "arom" in usage: message=f"🌿 {plante_select} utilisée pour son arôme."
                 elif "mag" in usage: message=f"✨ {plante_select} intégrée à un rituel."
                 elif "bois" in usage or "résine" in usage: message=f"🪵 {plante_select} transformée pour un usage matériel."
+                elif "champignon" in usage or "champignon" in infos: message=f"🍄 {plante_select} manipulé (champignon)."
+                elif "alchimie" in usage or "alchimie" in infos: message=f"🧪 {plante_select} utilisée en alchimie."
                 else: message=f"🌱 {plante_select} utilisée."
                 st.info(message)
                 inventaire[plante_select] -= quantite_utilisee
