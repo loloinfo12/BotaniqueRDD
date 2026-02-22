@@ -5,7 +5,7 @@ import json
 import os
 import hashlib
 from datetime import datetime
-import time
+from streamlit_autorefresh import st_autorefresh
 
 # ==========================
 # CONFIGURATION
@@ -39,14 +39,12 @@ st.markdown("""
 # SESSION INIT
 # ==========================
 for key in ["joueur","role","inventaires","last_tirage",
-            "historique_tirages_admin","historique_distributions_admin","journal_usages","last_refresh"]:
+            "historique_tirages_admin","historique_distributions_admin","journal_usages"]:
     if key not in st.session_state:
         if key in ["inventaires","journal_usages"]:
             st.session_state[key] = {}
         elif "historique" in key:
             st.session_state[key] = []
-        elif key=="last_refresh":
-            st.session_state[key] = 0
         else:
             st.session_state[key] = None
 
@@ -77,11 +75,15 @@ def charger_fichier(nom):
         df = pd.read_csv(nom, sep=";", encoding="cp1252")
     except:
         return pd.DataFrame()
+
     df = df.iloc[:, :8]
-    df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
+    df.columns = ["Nom","Usage","Habitat","Informations",
+                  "Rarete","Debut","Fin","Proliferation"]
+
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
+
     return df
 
 fichiers = {
@@ -143,18 +145,20 @@ if st.session_state.joueur is None:
 # ==========================
 if st.session_state.role == "joueur":
 
+    # 🔁 Rafraîchissement automatique toutes les 5 secondes
+    st_autorefresh(interval=5000, key="raffraichissement_auto")
+
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
+
     if joueur not in st.session_state.journal_usages:
         st.session_state.journal_usages[joueur] = []
 
-    # Rafraîchissement automatique
-    if time.time() - st.session_state.last_refresh > 5:
-        st.session_state.last_refresh = time.time()
-        st.experimental_rerun()
-
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
+    # ======================
+    # ONGLET INVENTAIRE
+    # ======================
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         if inventaire:
@@ -175,7 +179,7 @@ if st.session_state.role == "joueur":
                 elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
                 else: icone="🌱"
                 data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
-            st.dataframe(pd.DataFrame(data_inv),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
 
             st.divider()
             st.subheader("🌿 Utiliser une plante")
@@ -186,7 +190,7 @@ if st.session_state.role == "joueur":
                 if not res.empty:
                     plante_info = res.iloc[0]
                     break
-            if plante_info:
+            if plante_info is not None:
                 st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
 **Habitat :** {plante_info['Habitat']}  
@@ -198,7 +202,6 @@ if st.session_state.role == "joueur":
             quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
             if st.button("Utiliser"):
                 usage = plante_info["Usage"].lower()
-                message = ""
                 if any(m in usage for m in ["soin","médic","guér","curatif"]): message=f"❤️ {plante_select} utilisée pour ses vertus médicinales."
                 elif any(m in usage for m in ["tox","poison"]): message=f"☠️ {plante_select} manipulée avec prudence (toxique)."
                 elif "aliment" in usage: message=f"🍽️ {plante_select} consommée."
@@ -208,7 +211,7 @@ if st.session_state.role == "joueur":
                 else: message=f"🌱 {plante_select} utilisée."
                 st.info(message)
                 inventaire[plante_select] -= quantite_utilisee
-                if inventaire[plante_select]<=0: del inventaire[plante_select]
+                if inventaire[plante_select] <= 0: del inventaire[plante_select]
                 st.session_state.inventaires[joueur] = inventaire
                 sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
                 st.session_state.journal_usages[joueur].append({
@@ -219,23 +222,21 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
+    # ======================
+    # ONGLET JOURNAL
+    # ======================
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
         if journal:
-            st.dataframe(pd.DataFrame(journal),use_container_width=True,hide_index=True)
-            if st.button("🗑️ Effacer mon journal"):
-                st.session_state.journal_usages[joueur] = []
-                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
-                st.success("Journal effacé.")
-                st.experimental_rerun()
+            st.dataframe(pd.DataFrame(journal), use_container_width=True, hide_index=True)
         else:
             st.info("Aucune utilisation enregistrée.")
 
 # ==========================
 # INTERFACE ADMIN
 # ==========================
-elif st.session_state.role=="admin":
+elif st.session_state.role == "admin":
     tabs = st.tabs(["🎮 Gestion","📜 Historique"])
     with tabs[0]:
         col_left, col_right = st.columns(2)
@@ -243,7 +244,7 @@ elif st.session_state.role=="admin":
             st.subheader("🎲 Tirage")
             env = st.selectbox("Environnement", list(fichiers.keys()))
             c1,c2,c3 = st.columns(3)
-            nb=0
+            nb = 0
             if c1.button("1"): nb=1
             if c2.button("3"): nb=3
             if c3.button("5"): nb=5
@@ -267,7 +268,6 @@ elif st.session_state.role=="admin":
                         "Plante":row["Nom"]
                     })
                 sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
-
         with col_right:
             st.subheader("🎁 Distribution")
             if isinstance(st.session_state.last_tirage,pd.DataFrame) and not st.session_state.last_tirage.empty:
@@ -277,10 +277,8 @@ elif st.session_state.role=="admin":
                 if st.button("Distribuer"):
                     inv = st.session_state.inventaires[joueur]
                     inv[plante] = inv.get(plante,0)+qte
-                    st.session_state.inventaires[joueur] = inv
                     sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
-                    st.success(f"{qte} {plante} distribuée(s) à {joueur}")
-
+                    st.success("Distribution effectuée")
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
         if st.session_state.historique_tirages_admin:
