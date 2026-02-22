@@ -7,32 +7,18 @@ import hashlib
 from datetime import datetime
 
 # ==========================
-# CONFIGURATION
+# FICHIERS
 # ==========================
 INVENTAIRE_FILE = "inventaires.json"
+JOURNAL_FILE = "journal_usages.json"
 HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
 HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
-JOURNAL_FILE = "journal_usages.json"
 
+# ==========================
+# ADMIN
+# ==========================
 ADMIN_USER = "admin"
 ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
-
-# ==========================
-# STYLE
-# ==========================
-st.markdown("""
-<style>
-.card {
-    background-color: #1e1e1e;
-    padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
-}
-.card h3 { color: #7CFC00; }
-.card p { color: #f0f0f0; }
-</style>
-""", unsafe_allow_html=True)
 
 # ==========================
 # SESSION INIT
@@ -71,7 +57,7 @@ st.session_state.journal_usages = charger_json(JOURNAL_FILE,{})
 @st.cache_data
 def charger_fichier(nom):
     try:
-        df = pd.read_csv(nom, sep=";", encoding="cp1252")
+        df = pd.read_csv(nom, sep=";", encoding="utf-8-sig")
     except:
         return pd.DataFrame()
 
@@ -107,6 +93,25 @@ def tirer_plantes(df, nb):
         res = df[(df["Debut"]<=val)&(df["Fin"]>=val)]
         tirage_total = pd.concat([tirage_total,res])
     return tirage_total
+
+# ==========================
+# ICÔNES PAR USAGE
+# ==========================
+usage_icons = {
+    "Médicinale": "❤️",
+    "Alimentaire": "🍽️",
+    "Magique": "✨",
+    "Aromatique": "🌿",
+    "Décorative": "🌸",
+    "Bois/Résine": "🪵",
+    "Champignon": "🍄",
+    "Herbe": "🧪",
+    "Autre": "🌱"
+}
+
+def get_usage_icon(usage_text):
+    usage_text = str(usage_text).strip()
+    return usage_icons.get(usage_text, "🌱")
 
 # ==========================
 # LOGIN
@@ -173,18 +178,9 @@ if st.session_state.role == "joueur":
                         type_plante = res.iloc[0]["Usage"]
                         break
 
-                # 🪄 Choisir icône
-                usage_lower = type_plante.lower()
-                if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
-                elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
-                elif "aliment" in usage_lower: icone="🍽️"
-                elif "arom" in usage_lower: icone="🌿"
-                elif "mag" in usage_lower: icone="✨"
-                elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
-                else: icone="🌱"
-
+                icon = get_usage_icon(type_plante)
                 data_inv.append({
-                    "Plante": f"{icone} {plante}",
+                    "Plante": f"{icon} {plante}",
                     "Type": type_plante,
                     "Quantité": qt
                 })
@@ -225,23 +221,9 @@ if st.session_state.role == "joueur":
 
             if st.button("Utiliser"):
 
-                usage = plante_info["Usage"].lower()
-                message = ""
-
-                if any(m in usage for m in ["soin","médic","guér","curatif"]):
-                    message = f"❤️ {plante_select} utilisée pour ses vertus médicinales."
-                elif any(m in usage for m in ["tox","poison"]):
-                    message = f"☠️ {plante_select} manipulée avec prudence (toxique)."
-                elif "aliment" in usage:
-                    message = f"🍽️ {plante_select} consommée."
-                elif "arom" in usage:
-                    message = f"🌿 {plante_select} utilisée pour son arôme."
-                elif "mag" in usage:
-                    message = f"✨ {plante_select} intégrée à un rituel."
-                elif "bois" in usage or "résine" in usage:
-                    message = f"🪵 {plante_select} transformée pour un usage matériel."
-                else:
-                    message = f"🌱 {plante_select} utilisée."
+                usage = plante_info["Usage"]
+                icon = get_usage_icon(usage)
+                message = f"{icon} {plante_select} utilisée."
 
                 st.info(message)
 
@@ -256,7 +238,7 @@ if st.session_state.role == "joueur":
                 # Ajouter au journal
                 st.session_state.journal_usages[joueur].append({
                     "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Plante": plante_select,
+                    "Plante": f"{icon} {plante_select}",
                     "Quantité": quantite_utilisee,
                     "Effet": message
                 })
@@ -309,7 +291,7 @@ elif st.session_state.role == "admin":
                 st.session_state.last_tirage = tirage
                 for _,row in tirage.iterrows():
                     st.markdown(f"""
-<div class="card">
+<div style="border:2px solid #888; border-radius:10px; padding:10px; margin-bottom:10px;">
 <h3>{row['Nom']}</h3>
 <p><b>Usage :</b> {row['Usage']}</p>
 <p><b>Habitat :</b> {row['Habitat']}</p>
