@@ -40,16 +40,16 @@ st.markdown("""
 # ==========================
 for key in ["joueur","role","inventaires","last_tirage",
             "historique_tirages_admin","historique_distributions_admin",
-            "journal_usages","last_refresh","need_rerun"]:
+            "journal_usages","need_rerun","last_refresh"]:
     if key not in st.session_state:
         if key in ["inventaires","journal_usages"]:
             st.session_state[key] = {}
         elif "historique" in key:
             st.session_state[key] = []
-        elif key == "last_refresh":
-            st.session_state[key] = time.time()
         elif key == "need_rerun":
             st.session_state[key] = False
+        elif key == "last_refresh":
+            st.session_state[key] = time.time()
         else:
             st.session_state[key] = None
 
@@ -110,6 +110,13 @@ def tirer_plantes(df, nb):
     return tirage_total
 
 # ==========================
+# RAFRAICHISSEMENT AUTOMATIQUE
+# ==========================
+if st.session_state.get("need_rerun", False):
+    st.session_state.need_rerun = False
+    st.experimental_rerun()
+
+# ==========================
 # LOGIN
 # ==========================
 st.title("🌿 Mini-Jeu Botanique")
@@ -141,25 +148,19 @@ if st.session_state.joueur is None:
                 st.success("Compte créé")
 
 # ==========================
-# RAFRAICHISSEMENT AUTOMATIQUE
-# ==========================
-if st.session_state.get("need_rerun", False):
-    st.session_state.need_rerun = False
-    st.experimental_rerun()
-
-# ==========================
 # INTERFACE JOUEUR
 # ==========================
 if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
+    inventaire = st.session_state.inventaires.get(joueur, {})
 
+    # Rafraîchissement automatique
     if time.time() - st.session_state.last_refresh > 5:
-        st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE,{}).get(joueur, {})
+        st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE,{}).get(joueur,{})
         st.session_state.last_refresh = time.time()
         st.experimental_rerun()
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
-    inventaire = st.session_state.inventaires.get(joueur, {})
 
     # --------------------
     # INVENTAIRE
@@ -188,6 +189,7 @@ if st.session_state.role == "joueur":
                 data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
 
             st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
+
             st.divider()
             st.subheader("🌿 Utiliser une plante")
             plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
@@ -195,7 +197,6 @@ if st.session_state.role == "joueur":
             quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
 
             if st.button("Utiliser"):
-                # effet narratif
                 usage = type_plante.lower()
                 message = ""
                 if any(m in usage for m in ["soin","médic","guér","curatif"]):
@@ -216,14 +217,14 @@ if st.session_state.role == "joueur":
                     message = f"🌱 {plante_select} utilisée."
                 st.info(message)
 
-                # retirer
+                # Retirer plante
                 inventaire[plante_select] -= quantite_utilisee
                 if inventaire[plante_select] <=0:
                     del inventaire[plante_select]
                 st.session_state.inventaires[joueur] = inventaire
                 sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
-                # journal
+                # Journal
                 if joueur not in st.session_state.journal_usages:
                     st.session_state.journal_usages[joueur]=[]
                 st.session_state.journal_usages[joueur].append({
@@ -233,6 +234,7 @@ if st.session_state.role == "joueur":
                     "Effet": message
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+
                 st.session_state.need_rerun = True
 
         else:
@@ -300,6 +302,8 @@ elif st.session_state.role=="admin":
                     st.session_state.inventaires[joueur] = inv
                     sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
                     st.success("Distribution effectuée")
+                    # Force les joueurs à se rafraîchir
+                    st.session_state.need_rerun = True
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
         if st.session_state.historique_tirages_admin:
