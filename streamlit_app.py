@@ -16,7 +16,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
 
 # ==========================
 # STYLE
@@ -24,14 +24,15 @@ ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e" 
 st.markdown("""
 <style>
 .card {
-    background-color: #1e1e1e;
-    padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+    background-color: #222222;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    border-left: 6px solid #7CFC00;
 }
-.card h3 { color: #7CFC00; }
-.card p { color: #f0f0f0; }
+.card h3 { color: #7CFC00; margin-bottom: 5px; }
+.card p { color: #f0f0f0; margin: 2px 0; font-size: 14px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,17 +107,34 @@ def tirer_plantes(df, nb):
     return tirage_total
 
 # ==========================
+# MAPPINGS VISUELS
+# ==========================
+ICONE_USAGE = {
+    "soin":"❤️",
+    "médic":"❤️",
+    "guér":"❤️",
+    "curatif":"❤️",
+    "tox":"☠️",
+    "poison":"☠️",
+    "aliment":"🍽️",
+    "arom":"🌿",
+    "mag":"✨",
+    "bois":"🪵",
+    "résine":"🪵",
+    "champignon":"🍄",
+    "herbe":"🌱"
+}
+
+# ==========================
 # LOGIN
 # ==========================
 st.title("🌿 Mini-Jeu Botanique")
-
 if st.session_state.joueur is None:
     with st.form("login"):
         pseudo = st.text_input("Pseudo")
         mdp = st.text_input("Mot de passe admin", type="password")
         login = st.form_submit_button("Connexion")
         signup = st.form_submit_button("Créer compte")
-
         if login:
             hash_input = hashlib.sha256(mdp.encode()).hexdigest()
             if pseudo == ADMIN_USER and hash_input == ADMIN_HASH:
@@ -127,7 +145,6 @@ if st.session_state.joueur is None:
                 st.session_state.role = "joueur"
             else:
                 st.warning("Identifiants invalides")
-
         if signup:
             if pseudo in st.session_state.inventaires:
                 st.warning("Pseudo existant")
@@ -140,35 +157,40 @@ if st.session_state.joueur is None:
 # INTERFACE JOUEUR
 # ==========================
 if st.session_state.role == "joueur":
+
+    # 🔁 Rafraîchissement automatique toutes les 5 secondes
     st_autorefresh(interval=5000, key="raffraichissement_auto")
+
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
     if joueur not in st.session_state.journal_usages:
         st.session_state.journal_usages[joueur] = []
+
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
-    # ---------------------
+    # ----------------------
     # Inventaire
-    # ---------------------
+    # ----------------------
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         if inventaire:
             data_inv = []
             for plante, qt in inventaire.items():
                 type_plante = "Inconnu"
+                icone = "🌱"
                 for df in fichiers.values():
                     res = df[df["Nom"] == plante]
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
+                        type_lower = type_plante.lower()
+                        for key, val in ICONE_USAGE.items():
+                            if key in type_lower:
+                                icone = val
+                                break
+                        # Séparation herbes / champignons
+                        if "champignon" in type_lower: type_plante = f"Champignon 🍄"
+                        elif "herbe" in type_lower: type_plante = f"Herbe 🌱"
                         break
-                usage_lower = type_plante.lower()
-                if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
-                elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
-                elif "aliment" in usage_lower: icone="🍽️"
-                elif "arom" in usage_lower: icone="🌿"
-                elif "mag" in usage_lower: icone="✨"
-                elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
-                else: icone="🌱"
                 data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
             st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
 
@@ -213,9 +235,9 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
-    # ---------------------
+    # ----------------------
     # Journal
-    # ---------------------
+    # ----------------------
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
@@ -231,34 +253,25 @@ elif st.session_state.role == "admin":
     tabs = st.tabs(["🎮 Gestion","📜 Historique"])
     with tabs[0]:
         col_left, col_right = st.columns(2)
-
-        # Tirage
         with col_left:
             st.subheader("🎲 Tirage")
             env = st.selectbox("Environnement", list(fichiers.keys()))
-            c1, c2, c3 = st.columns(3)
+            c1,c2,c3 = st.columns(3)
             nb = 0
-            if c1.button("1"): nb = 1
-            if c2.button("3"): nb = 3
-            if c3.button("5"): nb = 5
-            if nb > 0:
+            if c1.button("1"): nb=1
+            if c2.button("3"): nb=3
+            if c3.button("5"): nb=5
+            if nb>0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
-                for _, row in tirage.iterrows():
-                    st.session_state.historique_tirages_admin.append({
-                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Env": env,
-                        "Plante": row["Nom"]
-                    })
-                sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
-
-        # Affichage du tirage
-        if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
-            st.subheader("🎲 Dernier tirage")
-            for _, row in st.session_state.last_tirage.iterrows():
-                st.markdown(f"""
+                for _,row in tirage.iterrows():
+                    type_lower = row['Usage'].lower()
+                    row_type = "🌱 Herbe"
+                    if "champignon" in type_lower: row_type = "🍄 Champignon"
+                    elif "herbe" in type_lower: row_type = "🌱 Herbe"
+                    st.markdown(f"""
 <div class="card">
-<h3>{row['Nom']}</h3>
+<h3>{row_type} {row['Nom']}</h3>
 <p><b>Usage :</b> {row['Usage']}</p>
 <p><b>Habitat :</b> {row['Habitat']}</p>
 <p><b>Rareté :</b> {row['Rarete']}</p>
@@ -266,22 +279,25 @@ elif st.session_state.role == "admin":
 <p><b>Informations :</b><br>{row['Informations']}</p>
 </div>
 """, unsafe_allow_html=True)
+                    st.session_state.historique_tirages_admin.append({
+                        "Date":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Env":env,
+                        "Plante":row["Nom"]
+                    })
+                sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
 
-        # Distribution
         with col_right:
             st.subheader("🎁 Distribution")
-            if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
+            if isinstance(st.session_state.last_tirage,pd.DataFrame) and not st.session_state.last_tirage.empty:
                 joueur = st.selectbox("Joueur", list(st.session_state.inventaires.keys()))
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
-                qte = st.number_input("Quantité", 1, 10, 1)
+                qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
                     inv = st.session_state.inventaires[joueur]
-                    inv[plante] = inv.get(plante, 0) + qte
-                    st.session_state.inventaires[joueur] = inv
+                    inv[plante] = inv.get(plante,0)+qte
                     sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
-                    st.success(f"{qte} {plante} distribuée(s) à {joueur}")
+                    st.success("Distribution effectuée")
 
-    # Historique des tirages
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
         if st.session_state.historique_tirages_admin:
