@@ -140,19 +140,25 @@ if st.session_state.joueur is None:
 # ==========================
 # INTERFACE JOUEUR
 # ==========================
+
 if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
 
-    # Rafraîchissement automatique toutes les 5 secondes
-    if "last_refresh" not in st.session_state:
+    # Initialisation du rafraîchissement automatique
+    if "last_refresh" not in st.session_state or not isinstance(st.session_state.last_refresh, (int, float)):
         st.session_state.last_refresh = time.time()
-    elif time.time() - st.session_state.last_refresh > 5:
+
+    # Rafraîchissement automatique toutes les 5 secondes
+    if time.time() - st.session_state.last_refresh > 5:
         st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
         st.session_state.last_refresh = time.time()
         st.experimental_rerun()
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
+    # ======================
+    # ONGLET INVENTAIRE
+    # ======================
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
         inventaire = st.session_state.inventaires.get(joueur, {})
@@ -160,6 +166,7 @@ if st.session_state.role == "joueur":
         if inventaire:
             data_inv = []
             for plante, qt in inventaire.items():
+                # Récupération du type complet
                 type_plante = "Inconnu"
                 for df in fichiers.values():
                     res = df[df["Nom"] == plante]
@@ -167,19 +174,21 @@ if st.session_state.role == "joueur":
                         type_plante = res.iloc[0]["Usage"]
                         break
 
+                # Icône correspondant au type complet
                 usage_lower = type_plante.lower()
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
                 elif "aliment" in usage_lower: icone="🍽️"
                 elif "arom" in usage_lower: icone="🌿"
                 elif "mag" in usage_lower: icone="✨"
+                elif "champignon" in usage_lower: icone="🍄"
                 elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
                 else: icone="🌱"
 
                 data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
 
             df_inv = pd.DataFrame(data_inv)
-            st.dataframe(df_inv,use_container_width=True,hide_index=True)
+            st.dataframe(df_inv, use_container_width=True, hide_index=True)
 
             st.divider()
             st.subheader("🌿 Utiliser une plante")
@@ -204,7 +213,12 @@ if st.session_state.role == "joueur":
 """)
 
             max_qt = inventaire[plante_select]
-            quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
+            quantite_utilisee = st.number_input(
+                "Quantité à utiliser",
+                min_value=1,
+                max_value=max_qt,
+                value=1
+            )
 
             if st.button("Utiliser"):
                 usage = plante_info["Usage"].lower()
@@ -219,12 +233,16 @@ if st.session_state.role == "joueur":
                     message = f"🌿 {plante_select} utilisée pour son arôme."
                 elif "mag" in usage:
                     message = f"✨ {plante_select} intégrée à un rituel."
+                elif "champignon" in usage:
+                    message = f"🍄 {plante_select} transformée pour usage spécial."
                 elif "bois" in usage or "résine" in usage:
                     message = f"🪵 {plante_select} transformée pour un usage matériel."
                 else:
                     message = f"🌱 {plante_select} utilisée."
 
                 st.info(message)
+
+                # Retirer plante
                 inventaire[plante_select] -= quantite_utilisee
                 if inventaire[plante_select] <= 0:
                     del inventaire[plante_select]
@@ -232,6 +250,7 @@ if st.session_state.role == "joueur":
                 st.session_state.inventaires[joueur] = inventaire
                 sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
+                # Ajouter au journal
                 if joueur not in st.session_state.journal_usages:
                     st.session_state.journal_usages[joueur] = []
                 st.session_state.journal_usages[joueur].append({
@@ -243,19 +262,21 @@ if st.session_state.role == "joueur":
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
                 st.experimental_rerun()
 
+    # ======================
+    # ONGLET JOURNAL
+    # ======================
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
         if journal:
             df_journal = pd.DataFrame(journal)
-            st.dataframe(df_journal,use_container_width=True,hide_index=True)
+            st.dataframe(df_journal, use_container_width=True, hide_index=True)
             if st.button("🗑️ Effacer mon journal"):
                 st.session_state.journal_usages[joueur] = []
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
                 st.experimental_rerun()
         else:
             st.info("Aucune utilisation enregistrée.")
-
 # ==========================
 # INTERFACE ADMIN
 # ==========================
