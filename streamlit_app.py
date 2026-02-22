@@ -181,7 +181,7 @@ if st.session_state.role == "joueur":
                 if not res.empty:
                     plante_info = res.iloc[0]
                     break
-            if plante_info:
+            if plante_info is not None:
                 st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
 **Habitat :** {plante_info['Habitat']}  
