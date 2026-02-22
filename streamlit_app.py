@@ -15,7 +15,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
 
 # ==========================
 # STYLE
@@ -38,12 +38,14 @@ st.markdown("""
 # SESSION INIT
 # ==========================
 for key in ["joueur","role","inventaires","last_tirage",
-            "historique_tirages_admin","historique_distributions_admin","journal_usages"]:
+            "historique_tirages_admin","historique_distributions_admin","journal_usages","rerun"]:
     if key not in st.session_state:
         if key in ["inventaires","journal_usages"]:
             st.session_state[key] = {}
         elif "historique" in key:
             st.session_state[key] = []
+        elif key == "rerun":
+            st.session_state[key] = False
         else:
             st.session_state[key] = None
 
@@ -74,15 +76,12 @@ def charger_fichier(nom):
         df = pd.read_csv(nom, sep=";", encoding="cp1252")
     except:
         return pd.DataFrame()
-
     df = df.iloc[:, :8]
     df.columns = ["Nom","Usage","Habitat","Informations",
                   "Rarete","Debut","Fin","Proliferation"]
-
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
-
     return df
 
 fichiers = {
@@ -146,18 +145,23 @@ if st.session_state.role == "joueur":
 
     joueur = st.session_state.joueur
 
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
+
     # ======================
     # ONGLET INVENTAIRE
     # ======================
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
-
     with tabs_joueur[0]:
-
         st.subheader("📦 Mon Inventaire")
 
         # 🔄 Bouton pour recharger l'inventaire depuis le JSON
-        if st.button("🔄 Rafraîchir mon inventaire"):
+        refresh_inv = st.button("🔄 Rafraîchir mon inventaire")
+        if refresh_inv:
             st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
+            st.session_state.rerun = True
+
+        # Vérifier le flag rerun
+        if st.session_state.get("rerun", False):
+            st.session_state.rerun = False
             st.experimental_rerun()
 
         inventaire = st.session_state.inventaires.get(joueur, {})
@@ -167,7 +171,6 @@ if st.session_state.role == "joueur":
             data_inv = []
 
             for plante, qt in inventaire.items():
-
                 # Récupération type (Usage)
                 type_plante = "Inconnu"
                 for df in fichiers.values():
@@ -248,7 +251,6 @@ if st.session_state.role == "joueur":
 
                 st.info(message)
 
-                # Retirer plante
                 inventaire[plante_select] -= quantite_utilisee
                 if inventaire[plante_select] <= 0:
                     del inventaire[plante_select]
@@ -256,7 +258,6 @@ if st.session_state.role == "joueur":
                 st.session_state.inventaires[joueur] = inventaire
                 sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
-                # Ajouter au journal
                 if joueur not in st.session_state.journal_usages:
                     st.session_state.journal_usages[joueur] = []
 
@@ -268,16 +269,12 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
-                st.rerun()
-
-        else:
-            st.info("Inventaire vide.")
+                st.experimental_rerun()
 
     # ======================
     # ONGLET JOURNAL
     # ======================
     with tabs_joueur[1]:
-
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
         if journal:
@@ -287,7 +284,7 @@ if st.session_state.role == "joueur":
                 st.session_state.journal_usages[joueur] = []
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
                 st.success("Journal effacé.")
-                st.rerun()
+                st.experimental_rerun()
         else:
             st.info("Aucune utilisation enregistrée.")
 
