@@ -5,6 +5,7 @@ import json
 import os
 import hashlib
 from datetime import datetime
+import time
 
 # ==========================
 # CONFIGURATION
@@ -38,7 +39,7 @@ st.markdown("""
 # SESSION INIT
 # ==========================
 for key in ["joueur","role","inventaires","last_tirage",
-            "historique_tirages_admin","historique_distributions_admin","journal_usages"]:
+            "historique_tirages_admin","historique_distributions_admin","journal_usages","last_refresh"]:
     if key not in st.session_state:
         if key in ["inventaires","journal_usages"]:
             st.session_state[key] = {}
@@ -140,33 +141,25 @@ if st.session_state.joueur is None:
 # INTERFACE JOUEUR
 # ==========================
 if st.session_state.role == "joueur":
-
     joueur = st.session_state.joueur
+
+    # Rafraîchissement automatique toutes les 5 secondes
+    if "last_refresh" not in st.session_state:
+        st.session_state.last_refresh = time.time()
+    elif time.time() - st.session_state.last_refresh > 5:
+        st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
+        st.session_state.last_refresh = time.time()
+        st.experimental_rerun()
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
-    # ======================
-    # ONGLET INVENTAIRE
-    # ======================
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
-
-        # 🔄 Bouton pour recharger l'inventaire depuis le JSON
-        refresh_inv = st.button("🔄 Rafraîchir mon inventaire")
-        if refresh_inv:
-            st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
-            # ⚡ Correctif sûr sans AttributeError
-            st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
-            st.stop()
-
         inventaire = st.session_state.inventaires.get(joueur, {})
 
         if inventaire:
-
             data_inv = []
-
             for plante, qt in inventaire.items():
-                # Récupération type (Usage)
                 type_plante = "Inconnu"
                 for df in fichiers.values():
                     res = df[df["Nom"] == plante]
@@ -174,7 +167,6 @@ if st.session_state.role == "joueur":
                         type_plante = res.iloc[0]["Usage"]
                         break
 
-                # 🪄 Choisir icône
                 usage_lower = type_plante.lower()
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
@@ -184,11 +176,7 @@ if st.session_state.role == "joueur":
                 elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
                 else: icone="🌱"
 
-                data_inv.append({
-                    "Plante": f"{icone} {plante}",
-                    "Type": type_plante,
-                    "Quantité": qt
-                })
+                data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
 
             df_inv = pd.DataFrame(data_inv)
             st.dataframe(df_inv,use_container_width=True,hide_index=True)
@@ -216,19 +204,11 @@ if st.session_state.role == "joueur":
 """)
 
             max_qt = inventaire[plante_select]
-
-            quantite_utilisee = st.number_input(
-                "Quantité à utiliser",
-                min_value=1,
-                max_value=max_qt,
-                value=1
-            )
+            quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
 
             if st.button("Utiliser"):
-
                 usage = plante_info["Usage"].lower()
                 message = ""
-
                 if any(m in usage for m in ["soin","médic","guér","curatif"]):
                     message = f"❤️ {plante_select} utilisée pour ses vertus médicinales."
                 elif any(m in usage for m in ["tox","poison"]):
@@ -245,7 +225,6 @@ if st.session_state.role == "joueur":
                     message = f"🌱 {plante_select} utilisée."
 
                 st.info(message)
-
                 inventaire[plante_select] -= quantite_utilisee
                 if inventaire[plante_select] <= 0:
                     del inventaire[plante_select]
@@ -255,7 +234,6 @@ if st.session_state.role == "joueur":
 
                 if joueur not in st.session_state.journal_usages:
                     st.session_state.journal_usages[joueur] = []
-
                 st.session_state.journal_usages[joueur].append({
                     "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Plante": plante_select,
@@ -263,14 +241,8 @@ if st.session_state.role == "joueur":
                     "Effet": message
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+                st.experimental_rerun()
 
-                # Utilisation directe sans erreur
-                st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
-                st.stop()
-
-    # ======================
-    # ONGLET JOURNAL
-    # ======================
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
         journal = st.session_state.journal_usages.get(joueur, [])
@@ -280,9 +252,7 @@ if st.session_state.role == "joueur":
             if st.button("🗑️ Effacer mon journal"):
                 st.session_state.journal_usages[joueur] = []
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
-                st.success("Journal effacé.")
-                st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
-                st.stop()
+                st.experimental_rerun()
         else:
             st.info("Aucune utilisation enregistrée.")
 
@@ -290,7 +260,6 @@ if st.session_state.role == "joueur":
 # INTERFACE ADMIN
 # ==========================
 elif st.session_state.role == "admin":
-
     tabs = st.tabs(["🎮 Gestion","📜 Historique"])
 
     with tabs[0]:
