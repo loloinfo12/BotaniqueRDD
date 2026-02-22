@@ -164,20 +164,63 @@ else:
 # INTERFACE JOUEUR
 # ==========================
 
+# ==========================
+# INTERFACE JOUEUR
+# ==========================
+
 if st.session_state.role == "joueur":
 
-    st.subheader("📦 Inventaire")
+    st.subheader("📦 Mon Inventaire")
 
-    inv = st.session_state.inventaires.get(st.session_state.joueur, {})
+    joueur = st.session_state.joueur
+    inventaire = st.session_state.inventaires.get(joueur, {})
 
-    if inv:
-        for plante, qt in inv.items():
-            st.markdown(f"""
-            <div class="card">
-            <h3>{plante}</h3>
-            <p>Quantité : {qt}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    if inventaire:
+
+        # --- Affichage en tableau ---
+        df_inv = pd.DataFrame(
+            [
+                {"Plante": plante, "Quantité": qt}
+                for plante, qt in inventaire.items()
+            ]
+        )
+
+        st.dataframe(df_inv, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # --- Utiliser / retirer une plante ---
+        st.subheader("🌿 Utiliser une plante")
+
+        plante_select = st.selectbox(
+            "Choisir une plante",
+            list(inventaire.keys())
+        )
+
+        max_qt = inventaire[plante_select]
+
+        quantite_utilisee = st.number_input(
+            "Quantité à utiliser",
+            min_value=1,
+            max_value=max_qt,
+            value=1
+        )
+
+        if st.button("Utiliser"):
+            inventaire[plante_select] -= quantite_utilisee
+
+            # Supprimer si quantité = 0
+            if inventaire[plante_select] <= 0:
+                del inventaire[plante_select]
+
+            # Sauvegarde
+            st.session_state.inventaires[joueur] = inventaire
+            sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+
+            st.success("Plante utilisée 🌱")
+
+            st.rerun()
+
     else:
         st.info("Inventaire vide.")
 
