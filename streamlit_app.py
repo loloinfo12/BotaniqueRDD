@@ -38,14 +38,12 @@ st.markdown("""
 # SESSION INIT
 # ==========================
 for key in ["joueur","role","inventaires","last_tirage",
-            "historique_tirages_admin","historique_distributions_admin","journal_usages","rerun"]:
+            "historique_tirages_admin","historique_distributions_admin","journal_usages"]:
     if key not in st.session_state:
         if key in ["inventaires","journal_usages"]:
             st.session_state[key] = {}
         elif "historique" in key:
             st.session_state[key] = []
-        elif key == "rerun":
-            st.session_state[key] = False
         else:
             st.session_state[key] = None
 
@@ -157,12 +155,9 @@ if st.session_state.role == "joueur":
         refresh_inv = st.button("🔄 Rafraîchir mon inventaire")
         if refresh_inv:
             st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
-            st.session_state.rerun = True
-
-        # Vérifier le flag rerun
-        if st.session_state.get("rerun", False):
-            st.session_state.rerun = False
-            st.experimental_rerun()
+            # ⚡ Correctif sûr sans AttributeError
+            st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
+            st.stop()
 
         inventaire = st.session_state.inventaires.get(joueur, {})
 
@@ -269,7 +264,9 @@ if st.session_state.role == "joueur":
                 })
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
-                st.experimental_rerun()
+                # Utilisation directe sans erreur
+                st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
+                st.stop()
 
     # ======================
     # ONGLET JOURNAL
@@ -284,7 +281,8 @@ if st.session_state.role == "joueur":
                 st.session_state.journal_usages[joueur] = []
                 sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
                 st.success("Journal effacé.")
-                st.experimental_rerun()
+                st.experimental_set_query_params(refresh=int(datetime.now().timestamp()))
+                st.stop()
         else:
             st.info("Aucune utilisation enregistrée.")
 
