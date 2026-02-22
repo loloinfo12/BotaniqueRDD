@@ -7,18 +7,32 @@ import hashlib
 from datetime import datetime
 
 # ==========================
-# FICHIERS
+# CONFIGURATION
 # ==========================
 INVENTAIRE_FILE = "inventaires.json"
-JOURNAL_FILE = "journal_usages.json"
 HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
 HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
+JOURNAL_FILE = "journal_usages.json"
 
-# ==========================
-# ADMIN
-# ==========================
 ADMIN_USER = "admin"
 ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
+
+# ==========================
+# STYLE
+# ==========================
+st.markdown("""
+<style>
+.card {
+    background-color: #1e1e1e;
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+}
+.card h3 { color: #7CFC00; }
+.card p { color: #f0f0f0; }
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================
 # SESSION INIT
@@ -57,12 +71,9 @@ st.session_state.journal_usages = charger_json(JOURNAL_FILE,{})
 @st.cache_data
 def charger_fichier(nom):
     try:
-        df = pd.read_csv(nom, sep=";", encoding="utf-8-sig")
+        df = pd.read_csv(nom, sep=";", encoding="cp1252")
     except:
         return pd.DataFrame()
-
-    if df.empty:
-        return df
 
     df = df.iloc[:, :8]
     df.columns = ["Nom","Usage","Habitat","Informations",
@@ -75,14 +86,12 @@ def charger_fichier(nom):
     return df
 
 fichiers = {
-    k:v for k,v in {
-        "Collines": charger_fichier("Collines.csv"),
-        "Forêts": charger_fichier("Forets.csv"),
-        "Plaines": charger_fichier("Plaines.csv"),
-        "Montagnes": charger_fichier("Montagnes.csv"),
-        "Marais": charger_fichier("Marais.csv"),
-        "Sous-sols": charger_fichier("Sous-sols.csv"),
-    }.items() if not v.empty and "Nom" in v.columns
+    "Collines": charger_fichier("Collines.csv"),
+    "Forêts": charger_fichier("Forets.csv"),
+    "Plaines": charger_fichier("Plaines.csv"),
+    "Montagnes": charger_fichier("Montagnes.csv"),
+    "Marais": charger_fichier("Marais.csv"),
+    "Sous-sols": charger_fichier("Sous-sols.csv"),
 }
 
 # ==========================
@@ -98,25 +107,6 @@ def tirer_plantes(df, nb):
         res = df[(df["Debut"]<=val)&(df["Fin"]>=val)]
         tirage_total = pd.concat([tirage_total,res])
     return tirage_total
-
-# ==========================
-# ICÔNES PAR USAGE
-# ==========================
-usage_icons = {
-    "Médicinale": "❤️",
-    "Alimentaire": "🍽️",
-    "Magique": "✨",
-    "Aromatique": "🌿",
-    "Décorative": "🌸",
-    "Bois/Résine": "🪵",
-    "Champignon": "🍄",
-    "Herbe": "🧪",
-    "Autre": "🌱"
-}
-
-def get_usage_icon(usage_text):
-    usage_text = str(usage_text).strip()
-    return usage_icons.get(usage_text, "🌱")
 
 # ==========================
 # LOGIN
@@ -178,16 +168,23 @@ if st.session_state.role == "joueur":
                 # Récupération type (Usage)
                 type_plante = "Inconnu"
                 for df in fichiers.values():
-                    if df.empty or "Nom" not in df.columns:
-                        continue
                     res = df[df["Nom"] == plante]
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
                         break
 
-                icon = get_usage_icon(type_plante)
+                # 🪄 Choisir icône
+                usage_lower = type_plante.lower()
+                if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
+                elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
+                elif "aliment" in usage_lower: icone="🍽️"
+                elif "arom" in usage_lower: icone="🌿"
+                elif "mag" in usage_lower: icone="✨"
+                elif "bois" in usage_lower or "résine" in usage_lower: icone="🪵"
+                else: icone="🌱"
+
                 data_inv.append({
-                    "Plante": f"{icon} {plante}",
+                    "Plante": f"{icone} {plante}",
                     "Type": type_plante,
                     "Quantité": qt
                 })
@@ -200,11 +197,9 @@ if st.session_state.role == "joueur":
 
             plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
 
-            # ✅ Recherche des informations détaillées pour la plante sélectionnée
+            # Infos détaillées
             plante_info = None
             for df in fichiers.values():
-                if df.empty or "Nom" not in df.columns:
-                    continue
                 res = df[df["Nom"] == plante_select]
                 if not res.empty:
                     plante_info = res.iloc[0]
@@ -220,6 +215,7 @@ if st.session_state.role == "joueur":
 """)
 
             max_qt = inventaire[plante_select]
+
             quantite_utilisee = st.number_input(
                 "Quantité à utiliser",
                 min_value=1,
@@ -229,31 +225,44 @@ if st.session_state.role == "joueur":
 
             if st.button("Utiliser"):
 
-                if plante_info is not None:
-                    usage = plante_info["Usage"]
-                    icon = get_usage_icon(usage)
-                    message = f"{icon} {plante_select} utilisée."
+                usage = plante_info["Usage"].lower()
+                message = ""
 
-                    st.info(message)
+                if any(m in usage for m in ["soin","médic","guér","curatif"]):
+                    message = f"❤️ {plante_select} utilisée pour ses vertus médicinales."
+                elif any(m in usage for m in ["tox","poison"]):
+                    message = f"☠️ {plante_select} manipulée avec prudence (toxique)."
+                elif "aliment" in usage:
+                    message = f"🍽️ {plante_select} consommée."
+                elif "arom" in usage:
+                    message = f"🌿 {plante_select} utilisée pour son arôme."
+                elif "mag" in usage:
+                    message = f"✨ {plante_select} intégrée à un rituel."
+                elif "bois" in usage or "résine" in usage:
+                    message = f"🪵 {plante_select} transformée pour un usage matériel."
+                else:
+                    message = f"🌱 {plante_select} utilisée."
 
-                    # Retirer plante
-                    inventaire[plante_select] -= quantite_utilisee
-                    if inventaire[plante_select] <= 0:
-                        del inventaire[plante_select]
+                st.info(message)
 
-                    st.session_state.inventaires[joueur] = inventaire
-                    sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+                # Retirer plante
+                inventaire[plante_select] -= quantite_utilisee
+                if inventaire[plante_select] <= 0:
+                    del inventaire[plante_select]
 
-                    # Ajouter au journal
-                    st.session_state.journal_usages[joueur].append({
-                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Plante": f"{icon} {plante_select}",
-                        "Quantité": quantite_utilisee,
-                        "Effet": message
-                    })
-                    sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+                st.session_state.inventaires[joueur] = inventaire
+                sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
-                    st.rerun()
+                # Ajouter au journal
+                st.session_state.journal_usages[joueur].append({
+                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Plante": plante_select,
+                    "Quantité": quantite_utilisee,
+                    "Effet": message
+                })
+                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+
+                st.rerun()
 
         else:
             st.info("Inventaire vide.")
@@ -300,7 +309,7 @@ elif st.session_state.role == "admin":
                 st.session_state.last_tirage = tirage
                 for _,row in tirage.iterrows():
                     st.markdown(f"""
-<div style="border:2px solid #888; border-radius:10px; padding:10px; margin-bottom:10px;">
+<div class="card">
 <h3>{row['Nom']}</h3>
 <p><b>Usage :</b> {row['Usage']}</p>
 <p><b>Habitat :</b> {row['Habitat']}</p>
