@@ -15,7 +15,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # SHA256 du mot de passe admin
 
 # ==========================
 # STYLE
@@ -145,19 +145,22 @@ if st.session_state.joueur is None:
 if st.session_state.role == "joueur":
 
     joueur = st.session_state.joueur
-    inventaire = st.session_state.inventaires.get(joueur, {})
-
-    if joueur not in st.session_state.journal_usages:
-        st.session_state.journal_usages[joueur] = []
-
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
     # ======================
     # ONGLET INVENTAIRE
     # ======================
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
+
     with tabs_joueur[0]:
 
         st.subheader("📦 Mon Inventaire")
+
+        # 🔄 Bouton pour recharger l'inventaire depuis le JSON
+        if st.button("🔄 Rafraîchir mon inventaire"):
+            st.session_state.inventaires[joueur] = charger_json(INVENTAIRE_FILE, {}).get(joueur, {})
+            st.experimental_rerun()
+
+        inventaire = st.session_state.inventaires.get(joueur, {})
 
         if inventaire:
 
@@ -254,6 +257,9 @@ if st.session_state.role == "joueur":
                 sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
                 # Ajouter au journal
+                if joueur not in st.session_state.journal_usages:
+                    st.session_state.journal_usages[joueur] = []
+
                 st.session_state.journal_usages[joueur].append({
                     "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Plante": plante_select,
