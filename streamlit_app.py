@@ -18,7 +18,7 @@ HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
 # ADMIN
 # ==========================
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "COLLER_LE_HASH_ICI"  # Hash SHA256 du mot de passe admin
 
 # ==========================
 # SESSION INIT
@@ -61,6 +61,9 @@ def charger_fichier(nom):
     except:
         return pd.DataFrame()
 
+    if df.empty:
+        return df
+
     df = df.iloc[:, :8]
     df.columns = ["Nom","Usage","Habitat","Informations",
                   "Rarete","Debut","Fin","Proliferation"]
@@ -72,12 +75,14 @@ def charger_fichier(nom):
     return df
 
 fichiers = {
-    "Collines": charger_fichier("Collines.csv"),
-    "Forêts": charger_fichier("Forets.csv"),
-    "Plaines": charger_fichier("Plaines.csv"),
-    "Montagnes": charger_fichier("Montagnes.csv"),
-    "Marais": charger_fichier("Marais.csv"),
-    "Sous-sols": charger_fichier("Sous-sols.csv"),
+    k:v for k,v in {
+        "Collines": charger_fichier("Collines.csv"),
+        "Forêts": charger_fichier("Forets.csv"),
+        "Plaines": charger_fichier("Plaines.csv"),
+        "Montagnes": charger_fichier("Montagnes.csv"),
+        "Marais": charger_fichier("Marais.csv"),
+        "Sous-sols": charger_fichier("Sous-sols.csv"),
+    }.items() if not v.empty and "Nom" in v.columns
 }
 
 # ==========================
@@ -172,10 +177,14 @@ if st.session_state.role == "joueur":
 
                 # Récupération type (Usage)
                 type_plante = "Inconnu"
+                plante_info = None
                 for df in fichiers.values():
+                    if df.empty or "Nom" not in df.columns:
+                        continue
                     res = df[df["Nom"] == plante]
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
+                        plante_info = res.iloc[0]
                         break
 
                 icon = get_usage_icon(type_plante)
@@ -193,25 +202,7 @@ if st.session_state.role == "joueur":
 
             plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
 
-            # Infos détaillées
-            plante_info = None
-            for df in fichiers.values():
-                res = df[df["Nom"] == plante_select]
-                if not res.empty:
-                    plante_info = res.iloc[0]
-                    break
-
-            if plante_info is not None:
-                st.markdown(f"""
-**Usage :** {plante_info['Usage']}  
-**Habitat :** {plante_info['Habitat']}  
-**Rareté :** {plante_info['Rarete']}  
-**Prolifération :** {plante_info['Proliferation']}  
-**Informations :** {plante_info['Informations']}
-""")
-
             max_qt = inventaire[plante_select]
-
             quantite_utilisee = st.number_input(
                 "Quantité à utiliser",
                 min_value=1,
@@ -221,30 +212,30 @@ if st.session_state.role == "joueur":
 
             if st.button("Utiliser"):
 
-                usage = plante_info["Usage"]
-                icon = get_usage_icon(usage)
-                message = f"{icon} {plante_select} utilisée."
+                if plante_info is not None:
+                    icon = get_usage_icon(plante_info["Usage"])
+                    message = f"{icon} {plante_select} utilisée."
 
-                st.info(message)
+                    st.info(message)
 
-                # Retirer plante
-                inventaire[plante_select] -= quantite_utilisee
-                if inventaire[plante_select] <= 0:
-                    del inventaire[plante_select]
+                    # Retirer plante
+                    inventaire[plante_select] -= quantite_utilisee
+                    if inventaire[plante_select] <= 0:
+                        del inventaire[plante_select]
 
-                st.session_state.inventaires[joueur] = inventaire
-                sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+                    st.session_state.inventaires[joueur] = inventaire
+                    sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
-                # Ajouter au journal
-                st.session_state.journal_usages[joueur].append({
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Plante": f"{icon} {plante_select}",
-                    "Quantité": quantite_utilisee,
-                    "Effet": message
-                })
-                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+                    # Ajouter au journal
+                    st.session_state.journal_usages[joueur].append({
+                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Plante": f"{icon} {plante_select}",
+                        "Quantité": quantite_utilisee,
+                        "Effet": message
+                    })
+                    sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
 
-                st.rerun()
+                    st.rerun()
 
         else:
             st.info("Inventaire vide.")
