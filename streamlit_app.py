@@ -13,6 +13,7 @@ from datetime import datetime
 INVENTAIRE_FILE = "inventaires.json"
 HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
 HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
+JOURNAL_FILE = "journal_usages.json"
 
 ADMIN_USER = "admin"
 ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
@@ -38,7 +39,9 @@ st.markdown("""
 # ==========================
 # SESSION INIT
 # ==========================
-
+if "journal_usages" not in st.session_state:
+    st.session_state.journal_usages = {}
+    
 for key in ["joueur","role","inventaires","last_tirage",
             "historique_tirages_admin","historique_distributions_admin"]:
     if key not in st.session_state:
@@ -66,6 +69,7 @@ def sauvegarder_json(file, data):
 st.session_state.inventaires = charger_json(INVENTAIRE_FILE,{})
 st.session_state.historique_tirages_admin = charger_json(HISTORIQUE_TIRAGES_FILE,[])
 st.session_state.historique_distributions_admin = charger_json(HISTORIQUE_DISTRIBUTIONS_FILE,[])
+st.session_state.journal_usages = charger_json(JOURNAL_FILE, {})
 
 # ==========================
 # LOAD CSV
@@ -158,31 +162,61 @@ if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
 
-    st.subheader("📦 Mon Inventaire")
+    if joueur not in st.session_state.journal_usages:
+        st.session_state.journal_usages[joueur] = []
 
-    if inventaire:
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
-        df_inv = pd.DataFrame(
-            [{"Plante":p,"Quantité":q} for p,q in inventaire.items()]
-        )
+    # ======================
+    # ONGLET INVENTAIRE
+    # ======================
 
-        st.dataframe(df_inv, use_container_width=True, hide_index=True)
+    with tabs_joueur[0]:
 
-        st.divider()
-        st.subheader("🌿 Utiliser une plante")
+        st.subheader("📦 Mon Inventaire")
 
-        plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
+        if inventaire:
 
-        # Récupération infos plante
-        plante_info = None
-        for df in fichiers.values():
-            res = df[df["Nom"] == plante_select]
-            if not res.empty:
-                plante_info = res.iloc[0]
-                break
+            data_inv = []
 
-        if plante_info is not None:
-            st.markdown(f"""
+            for plante, qt in inventaire.items():
+
+                # Récupération type (Usage)
+                type_plante = "Inconnu"
+                for df in fichiers.values():
+                    res = df[df["Nom"] == plante]
+                    if not res.empty:
+                        type_plante = res.iloc[0]["Usage"]
+                        break
+
+                data_inv.append({
+                    "Plante": plante,
+                    "Type": type_plante,
+                    "Quantité": qt
+                })
+
+            df_inv = pd.DataFrame(data_inv)
+
+            st.dataframe(df_inv, use_container_width=True, hide_index=True)
+
+            st.divider()
+            st.subheader("🌿 Utiliser une plante")
+
+            plante_select = st.selectbox(
+                "Choisir une plante",
+                list(inventaire.keys())
+            )
+
+            # Infos détaillées
+            plante_info = None
+            for df in fichiers.values():
+                res = df[df["Nom"] == plante_select]
+                if not res.empty:
+                    plante_info = res.iloc[0]
+                    break
+
+            if plante_info is not None:
+                st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
 **Habitat :** {plante_info['Habitat']}  
 **Rareté :** {plante_info['Rarete']}  
@@ -190,51 +224,87 @@ if st.session_state.role == "joueur":
 **Informations :** {plante_info['Informations']}
 """)
 
-        max_qt = inventaire[plante_select]
+            max_qt = inventaire[plante_select]
 
-        quantite_utilisee = st.number_input(
-            "Quantité à utiliser",
-            min_value=1,
-            max_value=max_qt,
-            value=1
-        )
+            quantite_utilisee = st.number_input(
+                "Quantité à utiliser",
+                min_value=1,
+                max_value=max_qt,
+                value=1
+            )
 
-        if st.button("Utiliser"):
+            if st.button("Utiliser"):
 
-            usage = plante_info["Usage"].lower()
+                usage = plante_info["Usage"].lower()
+                message = ""
 
-            if any(m in usage for m in ["soin","médic","guér","curatif"]):
-                st.success(f"❤️ Vous préparez {plante_select} pour ses vertus médicinales.")
+                if any(m in usage for m in ["soin","médic","guér","curatif"]):
+                    message = f"❤️ {plante_select} utilisée pour ses vertus médicinales."
 
-            elif any(m in usage for m in ["tox","poison"]):
-                st.error(f"☠️ {plante_select} dégage une substance dangereuse.")
+                elif any(m in usage for m in ["tox","poison"]):
+                    message = f"☠️ {plante_select} manipulée avec prudence (toxique)."
 
-            elif "aliment" in usage:
-                st.success(f"🍽️ Vous consommez {plante_select}.")
+                elif "aliment" in usage:
+                    message = f"🍽️ {plante_select} consommée."
 
-            elif "arom" in usage:
-                st.info(f"🌿 {plante_select} diffuse un parfum agréable.")
+                elif "arom" in usage:
+                    message = f"🌿 {plante_select} utilisée pour son arôme."
 
-            elif "mag" in usage:
-                st.success(f"✨ {plante_select} est utilisée dans un rituel.")
+                elif "mag" in usage:
+                    message = f"✨ {plante_select} intégrée à un rituel."
 
-            elif "bois" in usage or "résine" in usage:
-                st.info(f"🪵 {plante_select} est transformée pour ses propriétés matérielles.")
+                elif "bois" in usage or "résine" in usage:
+                    message = f"🪵 {plante_select} transformée pour un usage matériel."
 
-            else:
-                st.info(f"🌿 Vous utilisez {plante_select}.")
+                else:
+                    message = f"🌿 {plante_select} utilisée."
 
-            inventaire[plante_select] -= quantite_utilisee
-            if inventaire[plante_select] <= 0:
-                del inventaire[plante_select]
+                st.info(message)
 
-            st.session_state.inventaires[joueur] = inventaire
-            sauvegarder_json(INVENTAIRE_FILE,st.session_state.inventaires)
+                # Retirer plante
+                inventaire[plante_select] -= quantite_utilisee
+                if inventaire[plante_select] <= 0:
+                    del inventaire[plante_select]
 
-            st.rerun()
+                st.session_state.inventaires[joueur] = inventaire
+                sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
 
-    else:
-        st.info("Inventaire vide.")
+                # Ajouter au journal
+                st.session_state.journal_usages[joueur].append({
+                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Plante": plante_select,
+                    "Quantité": quantite_utilisee,
+                    "Effet": message
+                })
+
+                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+
+                st.rerun()
+
+        else:
+            st.info("Inventaire vide.")
+
+    # ======================
+    # ONGLET JOURNAL
+    # ======================
+
+    with tabs_joueur[1]:
+
+        st.subheader("📜 Journal personnel")
+
+        journal = st.session_state.journal_usages.get(joueur, [])
+
+        if journal:
+            df_journal = pd.DataFrame(journal)
+            st.dataframe(df_journal, use_container_width=True, hide_index=True)
+
+            if st.button("🗑️ Effacer mon journal"):
+                st.session_state.journal_usages[joueur] = []
+                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+                st.success("Journal effacé.")
+                st.rerun()
+        else:
+            st.info("Aucune utilisation enregistrée.")
 
 # ==========================
 # INTERFACE ADMIN
