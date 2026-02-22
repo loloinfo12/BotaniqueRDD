@@ -146,7 +146,20 @@ if st.session_state.role == "joueur":
 
     joueur = st.session_state.joueur
     inventaire = st.session_state.inventaires.get(joueur, {})
+# -----------------------------
+# Rafraîchissement automatique
+# -----------------------------
+import time
 
+# Initialisation
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = 0
+
+# Rafraîchit toutes les 5 secondes
+if time.time() - st.session_state.last_refresh > 5:
+    st.session_state.last_refresh = time.time()
+    st.experimental_rerun()
+    
     if joueur not in st.session_state.journal_usages:
         st.session_state.journal_usages[joueur] = []
 
@@ -332,10 +345,12 @@ elif st.session_state.role == "admin":
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
                 qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
-                    inv = st.session_state.inventaires[joueur]
-                    inv[plante] = inv.get(plante,0)+qte
-                    sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
-                    st.success("Distribution effectuée")
+                    if st.button("Distribuer"):
+                        inv = st.session_state.inventaires[joueur]
+                        inv[plante] = inv.get(plante, 0) + qte
+                        st.session_state.inventaires[joueur] = inv  # Met à jour la session
+                        sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+                        st.success(f"{qte} {plante} distribuée(s) à {joueur}")
 
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
