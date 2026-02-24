@@ -320,8 +320,7 @@ if st.session_state.role == "joueur":
 # INTERFACE ADMIN
 # ==========================
 elif st.session_state.role == "admin":
-    tabs_admin = st.tabs(["🎮 Gestion","📜 Historique","👥 Utilisateurs"])
-
+    tabs_admin = st.tabs(["🎮 Gestion","🌿 Attribution manuelle","📜 Historique","👥 Utilisateurs"])
     # --- Onglet Gestion ---
     with tabs_admin[0]:
         col_left, col_right = st.columns(2)
@@ -392,3 +391,37 @@ elif st.session_state.role == "admin":
                 st.experimental_rerun()
         else:
             st.info("Aucun joueur enregistré.")
+            # --------------------------
+# Onglet Attribution manuelle
+# --------------------------
+with tabs_admin[3]:
+    st.subheader("🌿 Attribution manuelle d'une plante")
+
+    # 1️⃣ Choix de l'environnement
+    env = st.selectbox("Choisir un environnement", list(fichiers.keys()), key="env_manual")
+
+    if env:
+        df_env = pd.read_csv(fichiers[env])
+
+        # 2️⃣ Choix de la plante
+        plante = st.selectbox(
+            "Choisir une plante",
+            df_env["Nom"].tolist(),
+            key="plante_manual"
+        )
+
+        # 3️⃣ Choix du joueur
+        joueurs = get_joueurs()
+        if joueurs:
+            joueur = st.selectbox("Choisir un joueur", joueurs, key="joueur_manual")
+
+            # 4️⃣ Quantité
+            qte = st.number_input("Quantité", min_value=1, max_value=20, value=1)
+
+            # 5️⃣ Bouton d'attribution
+            if st.button("Attribuer la plante"):
+                ajouter_au_inventaire(joueur, plante, qte)
+                ajouter_historique_distribution(joueur, plante, qte)
+                st.success(f"{qte}x {plante} attribué(s) à {joueur}")
+        else:
+            st.warning("Aucun joueur disponible.")
