@@ -368,33 +368,10 @@ elif st.session_state.role == "admin":
                     ajouter_au_inventaire(joueur, plante, qte)
                     ajouter_historique_distribution(joueur, plante, qte)
                     st.success("Distribution effectuée")
-
-    # --- Onglet Historique ---
-    with tabs_admin[1]:
-        st.subheader("📜 Historique des tirages")
-        hist = get_historique_tirages()
-        if hist:
-            st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
-        else:
-            st.info("Aucun tirage enregistré.")
-
-    # --- Onglet Gestion Utilisateurs ---
-    with tabs_admin[2]:
-        st.subheader("👥 Gestion des joueurs")
-        joueurs = get_joueurs()
-        if joueurs:
-            joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
-            confirm = st.checkbox(f"Confirmer la suppression de '{joueur_suppr}'")
-            if st.button("Supprimer ce joueur") and confirm:
-                supprimer_joueur(joueur_suppr)
-                st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
-                st.experimental_rerun()
-        else:
-            st.info("Aucun joueur enregistré.")
-            # --------------------------
+# --------------------------
 # Onglet Attribution manuelle
 # --------------------------
-with tabs_admin[3]:
+with tabs_admin[1]:
     st.subheader("🌿 Attribution manuelle d'une plante")
 
     # 1️⃣ Choix de l'environnement
@@ -425,3 +402,27 @@ with tabs_admin[3]:
                 st.success(f"{qte}x {plante} attribué(s) à {joueur}")
         else:
             st.warning("Aucun joueur disponible.")
+
+    
+    # --- Onglet Historique ---
+    with tabs_admin[2]:
+        st.subheader("📜 Historique des tirages")
+        hist = get_historique_tirages()
+        if hist:
+            st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
+        else:
+            st.info("Aucun tirage enregistré.")
+
+    # --- Onglet Gestion Utilisateurs ---
+    with tabs_admin[3]:
+        st.subheader("👥 Gestion des joueurs")
+        joueurs = get_joueurs()
+        if joueurs:
+            joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
+            confirm = st.checkbox(f"Confirmer la suppression de '{joueur_suppr}'")
+            if st.button("Supprimer ce joueur") and confirm:
+                supprimer_joueur(joueur_suppr)
+                st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
+                st.experimental_rerun()
+        else:
+            st.info("Aucun joueur enregistré.")
