@@ -460,12 +460,17 @@ with tab_attribution:
                 row_class = "herbe"
                 row_type = "🌱 Herbe"
 
+            # ⭐ Rareté en étoiles (plus c'est rare, plus d'étoiles)
+            rarete = plante_info["Rarete"]
+            nb_etoiles = min(max(-int(rarete), 0), 5)  # transforme négatif en positif, max 5
+            etoiles = "⭐" * nb_etoiles
+
             st.markdown(f"""
             <div class="card {row_class}">
             <h3>{row_type} {plante_info['Nom']}</h3>
             <p><b>Usage :</b> {plante_info['Usage']}</p>
             <p><b>Habitat :</b> {plante_info['Habitat']}</p>
-            <p><b>Rareté :</b> {plante_info['Rarete']}</p>
+            <p><b>Rareté :</b> {etoiles} ({rarete})</p>
             <p><b>Prolifération :</b> {plante_info['Proliferation']}</p>
             <p><b>Informations :</b><br>{plante_info['Informations']}</p>
             </div>
