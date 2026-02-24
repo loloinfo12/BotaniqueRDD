@@ -392,10 +392,10 @@ elif st.session_state.role == "admin":
             else:
                 st.info("Aucun tirage ou aucun joueur disponible.")
 
-    # -------------------------------------------------
-    # 🌿 ONGLET ATTRIBUTION MANUELLE
-    # -------------------------------------------------
-    with tab_attribution:
+   # -------------------------------------------------
+# 🌿 ONGLET ATTRIBUTION MANUELLE
+# -------------------------------------------------
+with tab_attribution:
 
     st.subheader("🌿 Attribution manuelle d'une plante")
 
@@ -462,7 +462,7 @@ elif st.session_state.role == "admin":
 
             # ⭐ Rareté en étoiles (plus c'est rare, plus d'étoiles)
             rarete = plante_info["Rarete"]
-            nb_etoiles = min(max(-int(rarete), 0), 5)  # transforme négatif en positif, max 5
+            nb_etoiles = min(max(-int(rarete), 0), 5)  # transforme négatif en positif, max 5 étoiles
             etoiles = "⭐" * nb_etoiles
 
             st.markdown(f"""
