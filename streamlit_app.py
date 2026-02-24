@@ -74,20 +74,41 @@ st.session_state.journal_usages = charger_json(JOURNAL_FILE,{})
 @st.cache_data
 def charger_fichier(nom):
     try:
-        df = pd.read_csv(nom, sep=";", encoding="cp1252")
+        df = pd.read_csv(
+            nom,
+            sep=";",
+            encoding="cp1252",
+            low_memory=False
+        )
     except:
-        return pd.DataFrame()
+        return {"table": [], "df": pd.DataFrame(), "lookup": {}}
 
-    df = df.iloc[:, :8]
-    df.columns = ["Nom","Usage","Habitat","Informations",
-                  "Rarete","Debut","Fin","Proliferation"]
+    df = df.iloc[:, :8].copy()
+    df.columns = [
+        "Nom","Usage","Habitat","Informations",
+        "Rarete","Debut","Fin","Proliferation"
+    ]
 
-    df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0)
-    df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000)
+    df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
+    df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype(int)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
 
-    return df
+    # 🔥 TABLE DIRECTE POUR TIRAGE INSTANTANÉ
+    max_val = int(df["Fin"].max())
+    table = [None] * (max_val + 1)
 
+    for _, row in df.iterrows():
+        for i in range(row["Debut"], row["Fin"] + 1):
+            table[i] = row
+
+    # 🔥 DICTIONNAIRE POUR ACCÈS RAPIDE PAR NOM (inventaire)
+    lookup = {row["Nom"]: row for _, row in df.iterrows()}
+
+    return {
+        "table": table,
+        "df": df,
+        "lookup": lookup
+    }
 fichiers = {
     "Collines": charger_fichier("Collines.csv"),
     "Forêts": charger_fichier("Forets.csv"),
@@ -100,16 +121,22 @@ fichiers = {
 # ==========================
 # TIRAGE
 # ==========================
-def tirer_plantes(df, nb):
-    if df.empty:
+def tirer_plantes(data, nb):
+    table = data["table"]
+
+    if not table:
         return pd.DataFrame()
-    max_val = int(df["Fin"].max())
-    tirage_total = pd.DataFrame()
+
+    tirages = []
+    max_val = len(table) - 1
+
     for _ in range(nb):
-        val = random.randint(1,max_val)
-        res = df[(df["Debut"]<=val)&(df["Fin"]>=val)]
-        tirage_total = pd.concat([tirage_total,res])
-    return tirage_total
+        val = random.randint(1, max_val)
+        plante = table[val]
+        if plante is not None:
+            tirages.append(plante)
+
+    return pd.DataFrame(tirages) if tirages else pd.DataFrame()
 
 # ==========================
 # LOGIN
@@ -163,8 +190,10 @@ if st.session_state.role == "joueur":
             data_inv = []
             for plante, qt in inventaire.items():
                 type_plante = "Inconnu"
-                for df in fichiers.values():
-                    res = df[df["Nom"] == plante]
+                for data in fichiers.values():
+                    if plante in data["lookup"]:
+                        type_plante = data["lookup"][plante]["Usage"]
+                        break
                     if not res.empty:
                         type_plante = res.iloc[0]["Usage"]
                         break
@@ -183,8 +212,10 @@ if st.session_state.role == "joueur":
             st.subheader("🌿 Utiliser une plante")
             plante_select = st.selectbox("Choisir une plante", list(inventaire.keys()))
             plante_info = None
-            for df in fichiers.values():
-                res = df[df["Nom"] == plante_select]
+            for data in fichiers.values():
+                if plante_select in data["lookup"]:
+                    plante_info = data["lookup"][plante_select]
+                    break
                 if not res.empty:
                     plante_info = res.iloc[0]
                     break
