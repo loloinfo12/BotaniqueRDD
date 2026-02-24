@@ -194,9 +194,7 @@ if st.session_state.role == "joueur":
                     if plante in data["lookup"]:
                         type_plante = data["lookup"][plante]["Usage"]
                         break
-                    if not res.empty:
-                        type_plante = res.iloc[0]["Usage"]
-                        break
+                    
                 usage_lower = type_plante.lower()
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
@@ -216,9 +214,7 @@ if st.session_state.role == "joueur":
                 if plante_select in data["lookup"]:
                     plante_info = data["lookup"][plante_select]
                     break
-                if not res.empty:
-                    plante_info = res.iloc[0]
-                    break
+               
             if plante_info is not None:
                 st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
