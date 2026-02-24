@@ -159,6 +159,16 @@ def get_historique_tirages():
 def get_joueurs():
     c.execute("SELECT pseudo FROM joueurs WHERE role='joueur'")
     return [r[0] for r in c.fetchall()]
+    # --------------------------
+# Supprimer un joueur et toutes ses données
+# --------------------------
+def supprimer_joueur(pseudo):
+    # Supprime inventaire, journal, distributions et le joueur
+    c.execute("DELETE FROM inventaires WHERE pseudo=?", (pseudo,))
+    c.execute("DELETE FROM journal_usages WHERE pseudo=?", (pseudo,))
+    c.execute("DELETE FROM historique_distributions WHERE pseudo=?", (pseudo,))
+    c.execute("DELETE FROM joueurs WHERE pseudo=?", (pseudo,))
+    conn.commit()
 
 # ==========================
 # LOAD CSV
