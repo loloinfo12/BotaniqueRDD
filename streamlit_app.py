@@ -397,7 +397,14 @@ elif st.session_state.role == "admin":
     # -------------------------------------------------
     with tab_attribution:
 
-        st.subheader("🌿 Attribution manuelle d'une plante")
+    st.subheader("🌿 Attribution manuelle d'une plante")
+
+    col_left, col_right = st.columns([1, 1])
+
+    # =========================
+    # COLONNE GAUCHE : FORMULAIRE
+    # =========================
+    with col_left:
 
         env = st.selectbox(
             "Choisir un environnement",
@@ -406,7 +413,6 @@ elif st.session_state.role == "admin":
         )
 
         if env:
-            # ✅ CORRECTION 1 : on récupère le DataFrame déjà chargé
             df_env = fichiers[env]["df"]
 
             plante = st.selectbox(
@@ -437,6 +443,33 @@ elif st.session_state.role == "admin":
                     st.success(f"{qte}x {plante} attribué(s) à {joueur}")
             else:
                 st.warning("Aucun joueur disponible.")
+
+    # =========================
+    # COLONNE DROITE : INFOS PLANTE
+    # =========================
+    with col_right:
+
+        if env and plante:
+            plante_info = df_env[df_env["Nom"] == plante].iloc[0]
+
+            type_lower = plante_info["Usage"].lower()
+            if "champignon" in type_lower:
+                row_class = "champignon"
+                row_type = "🍄 Champignon"
+            else:
+                row_class = "herbe"
+                row_type = "🌱 Herbe"
+
+            st.markdown(f"""
+            <div class="card {row_class}">
+            <h3>{row_type} {plante_info['Nom']}</h3>
+            <p><b>Usage :</b> {plante_info['Usage']}</p>
+            <p><b>Habitat :</b> {plante_info['Habitat']}</p>
+            <p><b>Rareté :</b> {plante_info['Rarete']}</p>
+            <p><b>Prolifération :</b> {plante_info['Proliferation']}</p>
+            <p><b>Informations :</b><br>{plante_info['Informations']}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
     # -------------------------------------------------
     # 📜 ONGLET HISTORIQUE
