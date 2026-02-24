@@ -2,4 +2,3 @@ streamlit
 pandas
 chardet
 streamlit-autorefresh
-sqlite3
