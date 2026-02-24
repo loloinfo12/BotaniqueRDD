@@ -395,7 +395,7 @@ elif st.session_state.role == "admin":
     # -------------------------------------------------
     # 🌿 ONGLET ATTRIBUTION MANUELLE
     # -------------------------------------------------
-with tab_attribution:
+    with tab_attribution:
 
     st.subheader("🌿 Attribution manuelle d'une plante")
 
