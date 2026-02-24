@@ -254,7 +254,7 @@ if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
     inventaire = get_inventaire(joueur)
 
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])  # Seuls onglets joueurs
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
@@ -320,7 +320,6 @@ if st.session_state.role == "joueur":
 # INTERFACE ADMIN
 # ==========================
 elif st.session_state.role == "admin":
-
     tab_gestion, tab_attribution, tab_historique, tab_users = st.tabs([
         "🎮 Gestion",
         "🌿 Attribution manuelle",
@@ -328,28 +327,25 @@ elif st.session_state.role == "admin":
         "👥 Utilisateurs"
     ])
 
-    # -------------------------------------------------
-    # 🎮 ONGLET GESTION (Tirage + Distribution)
-    # -------------------------------------------------
+    # ------------------------
+    # Onglet Gestion
+    # ------------------------
     with tab_gestion:
-
         col_left, col_right = st.columns(2)
 
-        # ===== Tirage =====
+        # Tirage
         with col_left:
             st.subheader("🎲 Tirage")
             env = st.selectbox("Environnement", list(fichiers.keys()))
             c1, c2, c3 = st.columns(3)
-
             nb = 0
-            if c1.button("1"): nb = 1
-            if c2.button("3"): nb = 3
-            if c3.button("5"): nb = 5
+            if c1.button("1"): nb=1
+            if c2.button("3"): nb=3
+            if c3.button("5"): nb=5
 
             if nb > 0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
-
                 for _, row in tirage.iterrows():
                     ajouter_historique_tirage(env, row["Nom"])
 
@@ -357,34 +353,31 @@ elif st.session_state.role == "admin":
             if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 for _, row in st.session_state.last_tirage.iterrows():
                     type_lower = row["Usage"].lower()
-                    if "champignon" in type_lower:
-                        row_class = "champignon"
-                        row_type = "🍄 Champignon"
-                    else:
-                        row_class = "herbe"
-                        row_type = "🌱 Herbe"
-
+                    row_class = "champignon" if "champignon" in type_lower else "herbe"
+                    row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
+                    # ⭐ Rareté en étoiles
+                    rarete = row["Rarete"]
+                    nb_etoiles = min(max(-int(rarete),0),5)
+                    etoiles = "⭐"*nb_etoiles
                     st.markdown(f"""
                     <div class="card {row_class}">
                     <h3>{row_type} {row['Nom']}</h3>
                     <p><b>Usage :</b> {row['Usage']}</p>
                     <p><b>Habitat :</b> {row['Habitat']}</p>
-                    <p><b>Rareté :</b> {row['Rarete']}</p>
+                    <p><b>Rareté :</b> {etoiles} ({rarete})</p>
                     <p><b>Prolifération :</b> {row['Proliferation']}</p>
                     <p><b>Informations :</b><br>{row['Informations']}</p>
                     </div>
                     """, unsafe_allow_html=True)
 
-        # ===== Distribution après tirage =====
+        # Distribution
         with col_right:
             st.subheader("🎁 Distribution")
             joueurs = get_joueurs()
-
             if joueurs and isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 joueur = st.selectbox("Joueur", joueurs)
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
-                qte = st.number_input("Quantité", 1, 10, 1)
-
+                qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
                     ajouter_au_inventaire(joueur, plante, qte)
                     ajouter_historique_distribution(joueur, plante, qte)
@@ -392,78 +385,40 @@ elif st.session_state.role == "admin":
             else:
                 st.info("Aucun tirage ou aucun joueur disponible.")
 
-   # -------------------------------------------------
-# 🌿 ONGLET ATTRIBUTION MANUELLE
-# -------------------------------------------------
-with tab_attribution:
+    # ------------------------
+    # Onglet Attribution manuelle
+    # ------------------------
+    with tab_attribution:
+        st.subheader("🌿 Attribution manuelle d'une plante")
+        col_left, col_right = st.columns([1,1])
 
-    st.subheader("🌿 Attribution manuelle d'une plante")
+        # Formulaire
+        with col_left:
+            env = st.selectbox("Choisir un environnement", list(fichiers.keys()), key="env_manual")
+            if env:
+                df_env = fichiers[env]["df"]
+                plante = st.selectbox("Choisir une plante", df_env["Nom"].tolist(), key="plante_manual")
+                joueurs = get_joueurs()
+                if joueurs:
+                    joueur = st.selectbox("Choisir un joueur", joueurs, key="joueur_manual")
+                    qte = st.number_input("Quantité",1,20,1)
+                    if st.button("Attribuer la plante"):
+                        ajouter_au_inventaire(joueur, plante, qte)
+                        ajouter_historique_distribution(joueur, plante, qte)
+                        st.success(f"{qte}x {plante} attribué(s) à {joueur}")
+                else:
+                    st.warning("Aucun joueur disponible.")
 
-    col_left, col_right = st.columns([1, 1])
-
-    # =========================
-    # COLONNE GAUCHE : FORMULAIRE
-    # =========================
-    with col_left:
-
-        env = st.selectbox(
-            "Choisir un environnement",
-            list(fichiers.keys()),
-            key="env_manual"
-        )
-
-        if env:
-            df_env = fichiers[env]["df"]
-
-            plante = st.selectbox(
-                "Choisir une plante",
-                df_env["Nom"].tolist(),
-                key="plante_manual"
-            )
-
-            joueurs = get_joueurs()
-
-            if joueurs:
-                joueur = st.selectbox(
-                    "Choisir un joueur",
-                    joueurs,
-                    key="joueur_manual"
-                )
-
-                qte = st.number_input(
-                    "Quantité",
-                    min_value=1,
-                    max_value=20,
-                    value=1
-                )
-
-                if st.button("Attribuer la plante"):
-                    ajouter_au_inventaire(joueur, plante, qte)
-                    ajouter_historique_distribution(joueur, plante, qte)
-                    st.success(f"{qte}x {plante} attribué(s) à {joueur}")
-            else:
-                st.warning("Aucun joueur disponible.")
-
-    # =========================
-    # COLONNE DROITE : INFOS PLANTE
-    # =========================
-    with col_right:
-
-        if env and plante:
-            plante_info = df_env[df_env["Nom"] == plante].iloc[0]
-
-            type_lower = plante_info["Usage"].lower()
-            if "champignon" in type_lower:
-                row_class = "champignon"
-                row_type = "🍄 Champignon"
-            else:
-                row_class = "herbe"
-                row_type = "🌱 Herbe"
-
-            # ⭐ Rareté en étoiles (plus c'est rare, plus d'étoiles)
-            rarete = plante_info["Rarete"]
-            nb_etoiles = min(max(-int(rarete), 0), 5)  # transforme négatif en positif, max 5 étoiles
-            etoiles = "⭐" * nb_etoiles
+        # Infos plante
+        with col_right:
+            if env and plante:
+                plante_info = df_env[df_env["Nom"]==plante].iloc[0]
+                type_lower = plante_info["Usage"].lower()
+                row_class = "champignon" if "champignon" in type_lower else "herbe"
+                row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
+                rarete = plante_info["Rarete"]
+                nb_etoiles = min(max(-int(rarete),0),5)
+                etoiles = "⭐" * nb_etoiles
 
             st.markdown(f"""
             <div class="card {row_class}">
