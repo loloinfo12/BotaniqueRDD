@@ -159,11 +159,8 @@ def get_historique_tirages():
 def get_joueurs():
     c.execute("SELECT pseudo FROM joueurs WHERE role='joueur'")
     return [r[0] for r in c.fetchall()]
-    # --------------------------
-# Supprimer un joueur et toutes ses données
-# --------------------------
+
 def supprimer_joueur(pseudo):
-    # Supprime inventaire, journal, distributions et le joueur
     c.execute("DELETE FROM inventaires WHERE pseudo=?", (pseudo,))
     c.execute("DELETE FROM journal_usages WHERE pseudo=?", (pseudo,))
     c.execute("DELETE FROM historique_distributions WHERE pseudo=?", (pseudo,))
@@ -182,7 +179,6 @@ def charger_fichier(nom):
 
     df = df.iloc[:, :8].copy()
     df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
-
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype(int)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
@@ -228,7 +224,7 @@ st.title("🌿 Mini-Jeu Botanique")
 if st.session_state.joueur is None:
     with st.form("login"):
         pseudo = st.text_input("Pseudo")
-        mdp = st.text_input("Mot de passe admin", type="password")
+        mdp = st.text_input("Mot de passe", type="password")
         login = st.form_submit_button("Connexion")
         signup = st.form_submit_button("Créer compte")
 
@@ -258,7 +254,7 @@ if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
     inventaire = get_inventaire(joueur)
 
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])  # Seuls onglets joueurs
 
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
@@ -323,41 +319,35 @@ if st.session_state.role == "joueur":
 # ==========================
 # INTERFACE ADMIN
 # ==========================
-tabs = st.tabs(["🎮 Gestion","📜 Historique","👥 Utilisateurs"])  # Ajout de l'onglet utilisateurs
+elif st.session_state.role == "admin":
+    tabs_admin = st.tabs(["🎮 Gestion","📜 Historique","👥 Utilisateurs"])
 
-# --------------------------
-# Onglet Gestion : Tirage & Distribution
-# --------------------------
-with tabs[0]:
-    col_left, col_right = st.columns(2)
-    
-    # Tirage
-    with col_left:
-        st.subheader("🎲 Tirage")
-        env = st.selectbox("Environnement", list(fichiers.keys()))
-        c1,c2,c3 = st.columns(3)
-        nb = 0
-        if c1.button("1"): nb=1
-        if c2.button("3"): nb=3
-        if c3.button("5"): nb=5
+    # --- Onglet Gestion ---
+    with tabs_admin[0]:
+        col_left, col_right = st.columns(2)
 
-        if nb > 0:
-            tirage = tirer_plantes(fichiers[env], nb)
-            st.session_state.last_tirage = tirage
-            for _, row in tirage.iterrows():
-                ajouter_historique_tirage(env, row["Nom"])
+        with col_left:
+            st.subheader("🎲 Tirage")
+            env = st.selectbox("Environnement", list(fichiers.keys()))
+            c1,c2,c3 = st.columns(3)
+            nb = 0
+            if c1.button("1"): nb=1
+            if c2.button("3"): nb=3
+            if c3.button("5"): nb=5
 
-        # Affichage dernier tirage
-        if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
-            for _, row in st.session_state.last_tirage.iterrows():
-                type_lower = row['Usage'].lower()
-                if "champignon" in type_lower:
-                    row_class = "champignon"
-                    row_type = "🍄 Champignon"
-                else:
-                    row_class = "herbe"
-                    row_type = "🌱 Herbe"
-                st.markdown(f"""
+            if nb>0:
+                tirage = tirer_plantes(fichiers[env], nb)
+                st.session_state.last_tirage = tirage
+                for _, row in tirage.iterrows():
+                    ajouter_historique_tirage(env, row["Nom"])
+
+            # Affichage du dernier tirage
+            if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
+                for _, row in st.session_state.last_tirage.iterrows():
+                    type_lower = row['Usage'].lower()
+                    if "champignon" in type_lower: row_class = "champignon"; row_type = "🍄 Champignon"
+                    else: row_class = "herbe"; row_type = "🌱 Herbe"
+                    st.markdown(f"""
 <div class="card {row_class}">
 <h3>{row_type} {row['Nom']}</h3>
 <p><b>Usage :</b> {row['Usage']}</p>
@@ -368,52 +358,37 @@ with tabs[0]:
 </div>
 """, unsafe_allow_html=True)
 
-    # Distribution
-    with col_right:
-        st.subheader("🎁 Distribution")
-        if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
+        with col_right:
+            st.subheader("🎁 Distribution")
             joueurs = get_joueurs()
-            if joueurs:
+            if joueurs and isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 joueur = st.selectbox("Joueur", joueurs)
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
-                qte = st.number_input("Quantité", 1, 10, 1)
+                qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
                     ajouter_au_inventaire(joueur, plante, qte)
                     ajouter_historique_distribution(joueur, plante, qte)
                     st.success("Distribution effectuée")
-            else:
-                st.info("Aucun joueur disponible pour la distribution.")
 
-# --------------------------
-# Onglet Historique
-# --------------------------
-with tabs[1]:
-    st.subheader("📜 Historique des tirages")
-    hist = get_historique_tirages()
-    if hist:
-        st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
-    else:
-        st.info("Aucun tirage enregistré.")
+    # --- Onglet Historique ---
+    with tabs_admin[1]:
+        st.subheader("📜 Historique des tirages")
+        hist = get_historique_tirages()
+        if hist:
+            st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
+        else:
+            st.info("Aucun tirage enregistré.")
 
-# --------------------------
-# Onglet Gestion Utilisateurs
-# --------------------------
-with tabs[2]:
-    st.subheader("👥 Gestion des joueurs")
-    joueurs = get_joueurs()
-    
-    if joueurs:
-        joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
-        
-        # Bouton de suppression avec confirmation
-        if st.button("Supprimer ce joueur") and joueur_suppr:
-            # Confirmation simple
+    # --- Onglet Gestion Utilisateurs ---
+    with tabs_admin[2]:
+        st.subheader("👥 Gestion des joueurs")
+        joueurs = get_joueurs()
+        if joueurs:
+            joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
             confirm = st.checkbox(f"Confirmer la suppression de '{joueur_suppr}'")
-            if confirm:
+            if st.button("Supprimer ce joueur") and confirm:
                 supprimer_joueur(joueur_suppr)
                 st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
-                st.experimental_rerun()  # Rafraîchit la page pour mettre à jour la liste
-            else:
-                st.info("Cochez la case pour confirmer la suppression.")
-    else:
-        st.info("Aucun joueur enregistré.")
+                st.experimental_rerun()
+        else:
+            st.info("Aucun joueur enregistré.")
