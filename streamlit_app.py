@@ -1,22 +1,16 @@
 import streamlit as st
 import pandas as pd
 import random
-import json
-import os
 import hashlib
+import sqlite3
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 # ==========================
 # CONFIGURATION
 # ==========================
-INVENTAIRE_FILE = "inventaires.json"
-HISTORIQUE_TIRAGES_FILE = "historique_tirages.json"
-HISTORIQUE_DISTRIBUTIONS_FILE = "historique_distributions.json"
-JOURNAL_FILE = "journal_usages.json"
-
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # Hash SHA256 du mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # SHA256 mot de passe admin
 
 # ==========================
 # STYLE
@@ -40,33 +34,131 @@ st.markdown("""
 # ==========================
 # SESSION INIT
 # ==========================
-for key in ["joueur","role","inventaires","last_tirage",
-            "historique_tirages_admin","historique_distributions_admin","journal_usages"]:
+for key in ["joueur","role","last_tirage"]:
     if key not in st.session_state:
-        if key in ["inventaires","journal_usages"]:
-            st.session_state[key] = {}
-        elif "historique" in key:
-            st.session_state[key] = []
+        st.session_state[key] = None
+
+# ==========================
+# SQLITE DATABASE
+# ==========================
+conn = sqlite3.connect("botanique.db", check_same_thread=False)
+c = conn.cursor()
+
+# Tables
+c.execute("""
+CREATE TABLE IF NOT EXISTS joueurs (
+    pseudo TEXT PRIMARY KEY,
+    role TEXT,
+    password_hash TEXT
+)
+""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS inventaires (
+    pseudo TEXT,
+    plante TEXT,
+    quantite INTEGER,
+    PRIMARY KEY(pseudo, plante),
+    FOREIGN KEY(pseudo) REFERENCES joueurs(pseudo)
+)
+""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS historique_tirages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    env TEXT,
+    plante TEXT
+)
+""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS historique_distributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    pseudo TEXT,
+    plante TEXT,
+    quantite INTEGER
+)
+""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS journal_usages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    pseudo TEXT,
+    plante TEXT,
+    quantite INTEGER,
+    effet TEXT
+)
+""")
+conn.commit()
+
+# ==========================
+# SQLITE UTILS
+# ==========================
+def ajouter_joueur(pseudo, role="joueur", mdp_hash=""):
+    c.execute("INSERT OR IGNORE INTO joueurs(pseudo, role, password_hash) VALUES (?,?,?)",
+              (pseudo, role, mdp_hash))
+    conn.commit()
+
+def verifier_login(pseudo, mdp_hash):
+    c.execute("SELECT role FROM joueurs WHERE pseudo=? AND password_hash=?", (pseudo, mdp_hash))
+    res = c.fetchone()
+    return res[0] if res else None
+
+def get_inventaire(pseudo):
+    c.execute("SELECT plante, quantite FROM inventaires WHERE pseudo=?", (pseudo,))
+    return dict(c.fetchall())
+
+def ajouter_au_inventaire(pseudo, plante, quantite):
+    c.execute("""
+    INSERT INTO inventaires(pseudo, plante, quantite)
+    VALUES (?,?,?)
+    ON CONFLICT(pseudo, plante) DO UPDATE SET quantite = quantite + excluded.quantite
+    """, (pseudo, plante, quantite))
+    conn.commit()
+
+def retirer_de_inventaire(pseudo, plante, quantite):
+    c.execute("SELECT quantite FROM inventaires WHERE pseudo=? AND plante=?", (pseudo, plante))
+    row = c.fetchone()
+    if row:
+        nouvelle_qt = row[0] - quantite
+        if nouvelle_qt <= 0:
+            c.execute("DELETE FROM inventaires WHERE pseudo=? AND plante=?", (pseudo, plante))
         else:
-            st.session_state[key] = None
+            c.execute("UPDATE inventaires SET quantite=? WHERE pseudo=? AND plante=?", (nouvelle_qt, pseudo, plante))
+        conn.commit()
 
-# ==========================
-# JSON FUNCTIONS
-# ==========================
-def charger_json(file, default):
-    if os.path.exists(file):
-        with open(file,"r") as f:
-            return json.load(f)
-    return default
+def ajouter_journal(pseudo, plante, quantite, effet):
+    c.execute("""
+    INSERT INTO journal_usages(date, pseudo, plante, quantite, effet)
+    VALUES (?, ?, ?, ?, ?)
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), pseudo, plante, quantite, effet))
+    conn.commit()
 
-def sauvegarder_json(file, data):
-    with open(file,"w") as f:
-        json.dump(data,f)
+def ajouter_historique_tirage(env, plante):
+    c.execute("""
+    INSERT INTO historique_tirages(date, env, plante)
+    VALUES (?, ?, ?)
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), env, plante))
+    conn.commit()
 
-st.session_state.inventaires = charger_json(INVENTAIRE_FILE,{})
-st.session_state.historique_tirages_admin = charger_json(HISTORIQUE_TIRAGES_FILE,[])
-st.session_state.historique_distributions_admin = charger_json(HISTORIQUE_DISTRIBUTIONS_FILE,[])
-st.session_state.journal_usages = charger_json(JOURNAL_FILE,{})
+def ajouter_historique_distribution(pseudo, plante, quantite):
+    c.execute("""
+    INSERT INTO historique_distributions(date, pseudo, plante, quantite)
+    VALUES (?, ?, ?, ?)
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), pseudo, plante, quantite))
+    conn.commit()
+
+def get_journal(pseudo):
+    c.execute("SELECT date, plante, quantite, effet FROM journal_usages WHERE pseudo=? ORDER BY date DESC", (pseudo,))
+    rows = c.fetchall()
+    return [{"Date": r[0], "Plante": r[1], "Quantité": r[2], "Effet": r[3]} for r in rows]
+
+def get_historique_tirages():
+    c.execute("SELECT date, env, plante FROM historique_tirages ORDER BY date DESC")
+    return c.fetchall()
+
+def get_joueurs():
+    c.execute("SELECT pseudo FROM joueurs WHERE role='joueur'")
+    return [r[0] for r in c.fetchall()]
 
 # ==========================
 # LOAD CSV
@@ -74,41 +166,25 @@ st.session_state.journal_usages = charger_json(JOURNAL_FILE,{})
 @st.cache_data
 def charger_fichier(nom):
     try:
-        df = pd.read_csv(
-            nom,
-            sep=";",
-            encoding="cp1252",
-            low_memory=False
-        )
+        df = pd.read_csv(nom, sep=";", encoding="cp1252", low_memory=False)
     except:
         return {"table": [], "df": pd.DataFrame(), "lookup": {}}
 
     df = df.iloc[:, :8].copy()
-    df.columns = [
-        "Nom","Usage","Habitat","Informations",
-        "Rarete","Debut","Fin","Proliferation"
-    ]
+    df.columns = ["Nom","Usage","Habitat","Informations","Rarete","Debut","Fin","Proliferation"]
 
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype(int)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
 
-    # 🔥 TABLE DIRECTE POUR TIRAGE INSTANTANÉ
     max_val = int(df["Fin"].max())
-    table = [None] * (max_val + 1)
-
+    table = [None]*(max_val+1)
     for _, row in df.iterrows():
-        for i in range(row["Debut"], row["Fin"] + 1):
+        for i in range(row["Debut"], row["Fin"]+1):
             table[i] = row
-
-    # 🔥 DICTIONNAIRE POUR ACCÈS RAPIDE PAR NOM (inventaire)
     lookup = {row["Nom"]: row for _, row in df.iterrows()}
+    return {"table": table, "df": df, "lookup": lookup}
 
-    return {
-        "table": table,
-        "df": df,
-        "lookup": lookup
-    }
 fichiers = {
     "Collines": charger_fichier("Collines.csv"),
     "Forêts": charger_fichier("Forets.csv"),
@@ -123,20 +199,16 @@ fichiers = {
 # ==========================
 def tirer_plantes(data, nb):
     table = data["table"]
-
     if not table:
         return pd.DataFrame()
-
     tirages = []
-    max_val = len(table) - 1
-
-    for _ in range(nb):
+    max_val = len(table)-1
+    while len(tirages) < nb:
         val = random.randint(1, max_val)
         plante = table[val]
         if plante is not None:
             tirages.append(plante)
-
-    return pd.DataFrame(tirages) if tirages else pd.DataFrame()
+    return pd.DataFrame(tirages)
 
 # ==========================
 # LOGIN
@@ -155,32 +227,26 @@ if st.session_state.joueur is None:
             if pseudo == ADMIN_USER and hash_input == ADMIN_HASH:
                 st.session_state.joueur = pseudo
                 st.session_state.role = "admin"
-            elif pseudo in st.session_state.inventaires:
-                st.session_state.joueur = pseudo
-                st.session_state.role = "joueur"
             else:
-                st.warning("Identifiants invalides")
+                role = verifier_login(pseudo, hash_input)
+                if role:
+                    st.session_state.joueur = pseudo
+                    st.session_state.role = role
+                else:
+                    st.warning("Identifiants invalides")
 
         if signup:
-            if pseudo in st.session_state.inventaires:
-                st.warning("Pseudo existant")
-            else:
-                st.session_state.inventaires[pseudo] = {}
-                sauvegarder_json(INVENTAIRE_FILE,st.session_state.inventaires)
-                st.success("Compte créé")
+            hash_input = hashlib.sha256(mdp.encode()).hexdigest()
+            ajouter_joueur(pseudo, role="joueur", mdp_hash=hash_input)
+            st.success("Compte créé")
 
 # ==========================
 # INTERFACE JOUEUR
 # ==========================
 if st.session_state.role == "joueur":
-
-    st_autorefresh(interval=5000, key="raffraichissement_auto")  # 🔁 Rafraîchissement toutes les 5s
-
+    st_autorefresh(interval=5000, key="raffraichissement_auto")
     joueur = st.session_state.joueur
-    inventaire = st.session_state.inventaires.get(joueur, {})
-
-    if joueur not in st.session_state.journal_usages:
-        st.session_state.journal_usages[joueur] = []
+    inventaire = get_inventaire(joueur)
 
     tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
 
@@ -194,7 +260,6 @@ if st.session_state.role == "joueur":
                     if plante in data["lookup"]:
                         type_plante = data["lookup"][plante]["Usage"]
                         break
-                    
                 usage_lower = type_plante.lower()
                 if any(m in usage_lower for m in ["soin","médic","guér","curatif"]): icone="❤️"
                 elif any(m in usage_lower for m in ["tox","poison"]): icone="☠️"
@@ -214,7 +279,6 @@ if st.session_state.role == "joueur":
                 if plante_select in data["lookup"]:
                     plante_info = data["lookup"][plante_select]
                     break
-               
             if plante_info is not None:
                 st.markdown(f"""
 **Usage :** {plante_info['Usage']}  
@@ -235,21 +299,12 @@ if st.session_state.role == "joueur":
                 elif "bois" in usage or "résine" in usage: message=f"🪵 {plante_select} transformée pour un usage matériel."
                 else: message=f"🌱 {plante_select} utilisée."
                 st.info(message)
-                inventaire[plante_select] -= quantite_utilisee
-                if inventaire[plante_select] <= 0: del inventaire[plante_select]
-                st.session_state.inventaires[joueur] = inventaire
-                sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
-                st.session_state.journal_usages[joueur].append({
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Plante": plante_select,
-                    "Quantité": quantite_utilisee,
-                    "Effet": message
-                })
-                sauvegarder_json(JOURNAL_FILE, st.session_state.journal_usages)
+                retirer_de_inventaire(joueur, plante_select, quantite_utilisee)
+                ajouter_journal(joueur, plante_select, quantite_utilisee, message)
 
     with tabs_joueur[1]:
         st.subheader("📜 Journal personnel")
-        journal = st.session_state.journal_usages.get(joueur, [])
+        journal = get_journal(joueur)
         if journal:
             st.dataframe(pd.DataFrame(journal), use_container_width=True, hide_index=True)
         else:
@@ -271,18 +326,12 @@ elif st.session_state.role == "admin":
             if c2.button("3"): nb=3
             if c3.button("5"): nb=5
 
-            # Nouveau tirage
-            if nb > 0:
+            if nb>0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
-                st.session_state.historique_tirages_admin.extend([{
-                    "Date":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Env":env,
-                    "Plante":row["Nom"]
-                } for _, row in tirage.iterrows()])
-                sauvegarder_json(HISTORIQUE_TIRAGES_FILE, st.session_state.historique_tirages_admin)
+                for _, row in tirage.iterrows():
+                    ajouter_historique_tirage(env, row["Nom"])
 
-            # Affichage du dernier tirage
             if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 for _, row in st.session_state.last_tirage.iterrows():
                     type_lower = row['Usage'].lower()
@@ -302,19 +351,18 @@ elif st.session_state.role == "admin":
         with col_right:
             st.subheader("🎁 Distribution")
             if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
-                joueur = st.selectbox("Joueur", list(st.session_state.inventaires.keys()))
+                joueur = st.selectbox("Joueur", get_joueurs())
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
                 qte = st.number_input("Quantité",1,10,1)
                 if st.button("Distribuer"):
-                    inv = st.session_state.inventaires[joueur]
-                    inv[plante] = inv.get(plante,0)+qte
-                    st.session_state.inventaires[joueur] = inv
-                    sauvegarder_json(INVENTAIRE_FILE, st.session_state.inventaires)
+                    ajouter_au_inventaire(joueur, plante, qte)
+                    ajouter_historique_distribution(joueur, plante, qte)
                     st.success("Distribution effectuée")
 
     with tabs[1]:
         st.subheader("📜 Historique des tirages")
-        if st.session_state.historique_tirages_admin:
-            st.dataframe(pd.DataFrame(st.session_state.historique_tirages_admin), use_container_width=True)
+        hist = get_historique_tirages()
+        if hist:
+            st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
         else:
             st.info("Aucun tirage enregistré.")
