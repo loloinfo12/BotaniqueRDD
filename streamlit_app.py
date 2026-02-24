@@ -404,9 +404,16 @@ with tabs[2]:
     
     if joueurs:
         joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
-        if st.button("Supprimer ce joueur"):
-            supprimer_joueur(joueur_suppr)
-            st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
-            st.experimental_rerun()  # Rafraîchit la page pour mettre à jour la liste
+        
+        # Bouton de suppression avec confirmation
+        if st.button("Supprimer ce joueur") and joueur_suppr:
+            # Confirmation simple
+            confirm = st.checkbox(f"Confirmer la suppression de '{joueur_suppr}'")
+            if confirm:
+                supprimer_joueur(joueur_suppr)
+                st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
+                st.experimental_rerun()  # Rafraîchit la page pour mettre à jour la liste
+            else:
+                st.info("Cochez la case pour confirmer la suppression.")
     else:
         st.info("Aucun joueur enregistré.")
