@@ -320,106 +320,157 @@ if st.session_state.role == "joueur":
 # INTERFACE ADMIN
 # ==========================
 elif st.session_state.role == "admin":
-    tabs_admin = st.tabs(["🎮 Gestion","🌿 Attribution manuelle","📜 Historique","👥 Utilisateurs"])
-    # --- Onglet Gestion ---
-    with tabs_admin[0]:
+
+    tab_gestion, tab_attribution, tab_historique, tab_users = st.tabs([
+        "🎮 Gestion",
+        "🌿 Attribution manuelle",
+        "📜 Historique",
+        "👥 Utilisateurs"
+    ])
+
+    # -------------------------------------------------
+    # 🎮 ONGLET GESTION (Tirage + Distribution)
+    # -------------------------------------------------
+    with tab_gestion:
+
         col_left, col_right = st.columns(2)
 
+        # ===== Tirage =====
         with col_left:
             st.subheader("🎲 Tirage")
             env = st.selectbox("Environnement", list(fichiers.keys()))
-            c1,c2,c3 = st.columns(3)
-            nb = 0
-            if c1.button("1"): nb=1
-            if c2.button("3"): nb=3
-            if c3.button("5"): nb=5
+            c1, c2, c3 = st.columns(3)
 
-            if nb>0:
+            nb = 0
+            if c1.button("1"): nb = 1
+            if c2.button("3"): nb = 3
+            if c3.button("5"): nb = 5
+
+            if nb > 0:
                 tirage = tirer_plantes(fichiers[env], nb)
                 st.session_state.last_tirage = tirage
+
                 for _, row in tirage.iterrows():
                     ajouter_historique_tirage(env, row["Nom"])
 
-            # Affichage du dernier tirage
+            # Affichage dernier tirage
             if isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 for _, row in st.session_state.last_tirage.iterrows():
-                    type_lower = row['Usage'].lower()
-                    if "champignon" in type_lower: row_class = "champignon"; row_type = "🍄 Champignon"
-                    else: row_class = "herbe"; row_type = "🌱 Herbe"
-                    st.markdown(f"""
-<div class="card {row_class}">
-<h3>{row_type} {row['Nom']}</h3>
-<p><b>Usage :</b> {row['Usage']}</p>
-<p><b>Habitat :</b> {row['Habitat']}</p>
-<p><b>Rareté :</b> {row['Rarete']}</p>
-<p><b>Prolifération :</b> {row['Proliferation']}</p>
-<p><b>Informations :</b><br>{row['Informations']}</p>
-</div>
-""", unsafe_allow_html=True)
+                    type_lower = row["Usage"].lower()
+                    if "champignon" in type_lower:
+                        row_class = "champignon"
+                        row_type = "🍄 Champignon"
+                    else:
+                        row_class = "herbe"
+                        row_type = "🌱 Herbe"
 
+                    st.markdown(f"""
+                    <div class="card {row_class}">
+                    <h3>{row_type} {row['Nom']}</h3>
+                    <p><b>Usage :</b> {row['Usage']}</p>
+                    <p><b>Habitat :</b> {row['Habitat']}</p>
+                    <p><b>Rareté :</b> {row['Rarete']}</p>
+                    <p><b>Prolifération :</b> {row['Proliferation']}</p>
+                    <p><b>Informations :</b><br>{row['Informations']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # ===== Distribution après tirage =====
         with col_right:
             st.subheader("🎁 Distribution")
             joueurs = get_joueurs()
+
             if joueurs and isinstance(st.session_state.last_tirage, pd.DataFrame) and not st.session_state.last_tirage.empty:
                 joueur = st.selectbox("Joueur", joueurs)
                 plante = st.selectbox("Plante", st.session_state.last_tirage["Nom"].tolist())
-                qte = st.number_input("Quantité",1,10,1)
+                qte = st.number_input("Quantité", 1, 10, 1)
+
                 if st.button("Distribuer"):
                     ajouter_au_inventaire(joueur, plante, qte)
                     ajouter_historique_distribution(joueur, plante, qte)
                     st.success("Distribution effectuée")
-# --------------------------
-# Onglet Attribution manuelle
-# --------------------------
-with tabs_admin[1]:
-    st.subheader("🌿 Attribution manuelle d'une plante")
+            else:
+                st.info("Aucun tirage ou aucun joueur disponible.")
 
-    # 1️⃣ Choix de l'environnement
-    env = st.selectbox("Choisir un environnement", list(fichiers.keys()), key="env_manual")
+    # -------------------------------------------------
+    # 🌿 ONGLET ATTRIBUTION MANUELLE
+    # -------------------------------------------------
+    with tab_attribution:
 
-    if env:
-        df_env = pd.read_csv(fichiers[env])
+        st.subheader("🌿 Attribution manuelle d'une plante")
 
-        # 2️⃣ Choix de la plante
-        plante = st.selectbox(
-            "Choisir une plante",
-            df_env["Nom"].tolist(),
-            key="plante_manual"
+        env = st.selectbox(
+            "Choisir un environnement",
+            list(fichiers.keys()),
+            key="env_manual"
         )
 
-        # 3️⃣ Choix du joueur
-        joueurs = get_joueurs()
-        if joueurs:
-            joueur = st.selectbox("Choisir un joueur", joueurs, key="joueur_manual")
+        if env:
+            # ✅ CORRECTION 1 : on récupère le DataFrame déjà chargé
+            df_env = fichiers[env]["df"]
 
-            # 4️⃣ Quantité
-            qte = st.number_input("Quantité", min_value=1, max_value=20, value=1)
+            plante = st.selectbox(
+                "Choisir une plante",
+                df_env["Nom"].tolist(),
+                key="plante_manual"
+            )
 
-            # 5️⃣ Bouton d'attribution
-            if st.button("Attribuer la plante"):
-                ajouter_au_inventaire(joueur, plante, qte)
-                ajouter_historique_distribution(joueur, plante, qte)
-                st.success(f"{qte}x {plante} attribué(s) à {joueur}")
-        else:
-            st.warning("Aucun joueur disponible.")
+            joueurs = get_joueurs()
 
-    
-    # --- Onglet Historique ---
-    with tabs_admin[2]:
+            if joueurs:
+                joueur = st.selectbox(
+                    "Choisir un joueur",
+                    joueurs,
+                    key="joueur_manual"
+                )
+
+                qte = st.number_input(
+                    "Quantité",
+                    min_value=1,
+                    max_value=20,
+                    value=1
+                )
+
+                if st.button("Attribuer la plante"):
+                    ajouter_au_inventaire(joueur, plante, qte)
+                    ajouter_historique_distribution(joueur, plante, qte)
+                    st.success(f"{qte}x {plante} attribué(s) à {joueur}")
+            else:
+                st.warning("Aucun joueur disponible.")
+
+    # -------------------------------------------------
+    # 📜 ONGLET HISTORIQUE
+    # -------------------------------------------------
+    with tab_historique:
         st.subheader("📜 Historique des tirages")
         hist = get_historique_tirages()
+
         if hist:
-            st.dataframe(pd.DataFrame(hist, columns=["Date","Environnement","Plante"]), use_container_width=True)
+            st.dataframe(
+                pd.DataFrame(hist, columns=["Date", "Environnement", "Plante"]),
+                use_container_width=True
+            )
         else:
             st.info("Aucun tirage enregistré.")
 
-    # --- Onglet Gestion Utilisateurs ---
-    with tabs_admin[3]:
+    # -------------------------------------------------
+    # 👥 ONGLET UTILISATEURS
+    # -------------------------------------------------
+    with tab_users:
         st.subheader("👥 Gestion des joueurs")
+
         joueurs = get_joueurs()
+
         if joueurs:
-            joueur_suppr = st.selectbox("Sélectionner un joueur à supprimer", joueurs)
-            confirm = st.checkbox(f"Confirmer la suppression de '{joueur_suppr}'")
+            joueur_suppr = st.selectbox(
+                "Sélectionner un joueur à supprimer",
+                joueurs
+            )
+
+            confirm = st.checkbox(
+                f"Confirmer la suppression de '{joueur_suppr}'"
+            )
+
             if st.button("Supprimer ce joueur") and confirm:
                 supprimer_joueur(joueur_suppr)
                 st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
