@@ -395,7 +395,7 @@ elif st.session_state.role == "admin":
     # -------------------------------------------------
     # 🌿 ONGLET ATTRIBUTION MANUELLE
     # -------------------------------------------------
-    with tab_attribution:
+with tab_attribution:
 
     st.subheader("🌿 Attribution manuelle d'une plante")
 
@@ -470,7 +470,6 @@ elif st.session_state.role == "admin":
             <p><b>Informations :</b><br>{plante_info['Informations']}</p>
             </div>
             """, unsafe_allow_html=True)
-
     # -------------------------------------------------
     # 📜 ONGLET HISTORIQUE
     # -------------------------------------------------
