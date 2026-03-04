@@ -138,6 +138,10 @@ def charger_fichier(nom):
 
     df = df.iloc[:, :8].copy()
     df.columns = ["Nom", "Usage", "Habitat", "Informations", "Rarete", "Debut", "Fin", "Proliferation"]
+    
+    # Remplacement des ?? par '
+    df = df.apply(lambda col: col.str.replace("??", "'", regex=False) if col.dtype == "object" else col)
+
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype(int)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
