@@ -199,11 +199,13 @@ if st.session_state.joueur is None:
             if pseudo == ADMIN_USER and hash_input == ADMIN_HASH:
                 st.session_state.joueur = pseudo
                 st.session_state.role = "admin"
+                st.rerun()
             else:
                 role = verifier_login(pseudo, hash_input)
                 if role:
                     st.session_state.joueur = pseudo
                     st.session_state.role = role
+                    st.rerun()
                 else:
                     st.warning("Identifiants invalides")
 
