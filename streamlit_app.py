@@ -126,6 +126,9 @@ def supprimer_joueur(pseudo):
     supabase.table("historique_distributions").delete().eq("pseudo", pseudo).execute()
     supabase.table("joueurs").delete().eq("pseudo", pseudo).execute()
 
+def changer_mot_de_passe(pseudo, nouveau_hash):
+    supabase.table("joueurs").update({"password_hash": nouveau_hash}).eq("pseudo", pseudo).execute()
+
 # ==========================
 # LOAD CSV
 # ==========================
@@ -138,7 +141,7 @@ def charger_fichier(nom):
 
     df = df.iloc[:, :8].copy()
     df.columns = ["Nom", "Usage", "Habitat", "Informations", "Rarete", "Debut", "Fin", "Proliferation"]
-    
+
     # Remplacement des ?? par '
     df = df.apply(lambda col: col.str.replace("??", "'", regex=False) if col.dtype == "object" else col)
 
@@ -217,7 +220,7 @@ if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
     inventaire = get_inventaire(joueur)
 
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal"])
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal", "🔑 Mon compte"])
 
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
@@ -280,6 +283,29 @@ if st.session_state.role == "joueur":
             st.dataframe(pd.DataFrame(journal), use_container_width=True, hide_index=True)
         else:
             st.info("Aucune utilisation enregistrée.")
+
+    # ==========================
+    # ONGLET MON COMPTE (JOUEUR)
+    # ==========================
+    with tabs_joueur[2]:
+        st.subheader("🔑 Changer mon mot de passe")
+        ancien_mdp = st.text_input("Ancien mot de passe", type="password", key="ancien_mdp_joueur")
+        nouveau_mdp = st.text_input("Nouveau mot de passe", type="password", key="nouveau_mdp_joueur")
+        confirmer_mdp = st.text_input("Confirmer le nouveau mot de passe", type="password", key="confirmer_mdp_joueur")
+        if st.button("Mettre à jour le mot de passe"):
+            if not ancien_mdp or not nouveau_mdp or not confirmer_mdp:
+                st.warning("Veuillez remplir tous les champs.")
+            elif nouveau_mdp != confirmer_mdp:
+                st.error("Les nouveaux mots de passe ne correspondent pas.")
+            else:
+                ancien_hash = hashlib.sha256(ancien_mdp.encode()).hexdigest()
+                role_verifie = verifier_login(joueur, ancien_hash)
+                if not role_verifie:
+                    st.error("L'ancien mot de passe est incorrect.")
+                else:
+                    nouveau_hash = hashlib.sha256(nouveau_mdp.encode()).hexdigest()
+                    changer_mot_de_passe(joueur, nouveau_hash)
+                    st.success("✅ Mot de passe mis à jour avec succès.")
 
 # ==========================
 # INTERFACE ADMIN
@@ -420,5 +446,24 @@ elif st.session_state.role == "admin":
                 supprimer_joueur(joueur_suppr)
                 st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
                 st.rerun()
+
+            # ==========================
+            # RESET MOT DE PASSE (ADMIN)
+            # ==========================
+            st.divider()
+            st.subheader("🔑 Réinitialiser le mot de passe d'un joueur")
+            joueur_mdp = st.selectbox("Sélectionner un joueur", joueurs, key="joueur_mdp_admin")
+            nouveau_mdp = st.text_input("Nouveau mot de passe", type="password", key="nouveau_mdp_admin")
+            confirmer_mdp = st.text_input("Confirmer le mot de passe", type="password", key="confirmer_mdp_admin")
+            if st.button("Changer le mot de passe"):
+                if not nouveau_mdp:
+                    st.warning("Le mot de passe ne peut pas être vide.")
+                elif nouveau_mdp != confirmer_mdp:
+                    st.error("Les mots de passe ne correspondent pas.")
+                else:
+                    nouveau_hash = hashlib.sha256(nouveau_mdp.encode()).hexdigest()
+                    changer_mot_de_passe(joueur_mdp, nouveau_hash)
+                    st.success(f"✅ Mot de passe de '{joueur_mdp}' modifié avec succès.")
+
         else:
             st.info("Aucun joueur enregistré.")
