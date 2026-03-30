@@ -56,19 +56,19 @@ if "filtre_type" not in st.session_state:
 # TYPES DE PLANTES
 # ==========================
 TYPES_PLANTES = [
-    ("❤️",  "Soin",         ["soin", "médic", "guér", "curatif"]),
-    ("☠️",  "Toxique",      ["tox", "poison", "venin"]),
-    ("🍄",  "Champignon",   ["champignon"]),
-    ("🍽️", "Alimentaire",  ["aliment", "comestible", "nourriture"]),
-    ("🌸",  "Aromatique",   ["arom", "parfum", "épice"]),
-    ("✨",  "Magique",      ["mag", "ritual", "occulte", "enchan"]),
-    ("🪵",  "Matériau",     ["bois", "résine", "fibr", "matér"]),
-    ("🧴",  "Cosmétique",   ["hygién", "cosmét", "beauté"]),
-    ("🎨",  "Colorant",     ["tinctor", "teintur", "colorant"]),
-    ("🐛",  "Insecticide",  ["insecti", "répuls", "pestici"]),
-    ("⚡",  "Stimulant",    ["stimul", "tonique", "énergi"]),
-    ("🌀",  "Hallucinogène",["halluci", "psycho", "narcot"]),
-    ("🌱",  "Autre",        []),
+    ("❤️",  "Soin",          ["soin", "médic", "guér", "curatif"]),
+    ("☠️",  "Toxique",       ["tox", "poison", "venin"]),
+    ("🍄",  "Champignon",    ["champignon"]),
+    ("🍽️", "Alimentaire",   ["aliment", "comestible", "nourriture"]),
+    ("🌸",  "Aromatique",    ["arom", "parfum", "épice"]),
+    ("✨",  "Magique",       ["mag", "ritual", "occulte", "enchan"]),
+    ("🪵",  "Matériau",      ["bois", "résine", "fibr", "matér"]),
+    ("🧴",  "Cosmétique",    ["hygién", "cosmét", "beauté"]),
+    ("🎨",  "Colorant",      ["tinctor", "teintur", "colorant"]),
+    ("🐛",  "Insecticide",   ["insecti", "répuls", "pestici"]),
+    ("⚡",  "Stimulant",     ["stimul", "tonique", "énergi"]),
+    ("🌀",  "Hallucinogène", ["halluci", "psycho", "narcot"]),
+    ("🌱",  "Autre",         []),
 ]
 
 def get_icone(usage):
@@ -94,7 +94,6 @@ def usage_match_type(usage, label):
     for icone, lbl, mots in TYPES_PLANTES:
         if lbl == label:
             if label == "Autre":
-                # "Autre" = aucun autre type ne correspond
                 for icone2, lbl2, mots2 in TYPES_PLANTES:
                     if lbl2 == "Autre":
                         continue
@@ -245,25 +244,23 @@ def afficher_catalogue(key_prefix=""):
     # --- Boutons icônes filtre par type ---
     st.markdown("**Filtrer par type :**")
 
-    # On ne montre que les types présents dans les données
+    # Uniquement les types présents dans les données, sans trous
     types_presents = set(df_all["Usage"].apply(get_label))
-    cols = st.columns(len(TYPES_PLANTES))
-    for i, (icone, label, _) in enumerate(TYPES_PLANTES):
-        if label not in types_presents:
-            cols[i].markdown("")
-            continue
+    types_a_afficher = [(icone, label, mots) for icone, label, mots in TYPES_PLANTES if label in types_presents]
+
+    cols = st.columns(len(types_a_afficher))
+    for i, (icone, label, _) in enumerate(types_a_afficher):
         actif = st.session_state.filtre_type == label
-        label_bouton = f"{icone}" if not actif else f"**{icone}**"
-        bordure = "2px solid #7CFC00" if actif else "2px solid transparent"
-        # On utilise un style inline via markdown pour simuler le highlight
-        if cols[i].button(icone, key=f"btn_{key_prefix}_{label}", help=label):
-            if actif:
-                st.session_state.filtre_type = None
-            else:
-                st.session_state.filtre_type = label
+        if cols[i].button(
+            f"{icone} {label}",
+            key=f"btn_{key_prefix}_{label}",
+            help=label,
+            type="primary" if actif else "secondary"
+        ):
+            st.session_state.filtre_type = None if actif else label
             st.rerun()
 
-    # Affichage du filtre actif
+    # Indicateur filtre actif
     if st.session_state.filtre_type:
         icone_active = next((ic for ic, lb, _ in TYPES_PLANTES if lb == st.session_state.filtre_type), "")
         st.markdown(f"Filtre actif : {icone_active} **{st.session_state.filtre_type}** — cliquez à nouveau pour désactiver.")
