@@ -167,6 +167,61 @@ fichiers = {
 }
 
 # ==========================
+# CATALOGUE UTILS
+# ==========================
+def get_toutes_les_plantes():
+    frames = []
+    for env, data in fichiers.items():
+        df = data["df"]
+        if not df.empty:
+            df_copy = df.copy()
+            df_copy["Environnement"] = env
+            frames.append(df_copy)
+    if frames:
+        return pd.concat(frames, ignore_index=True).drop_duplicates(subset="Nom")
+    return pd.DataFrame()
+
+def afficher_catalogue():
+    st.subheader("📖 Catalogue des plantes")
+    df_all = get_toutes_les_plantes()
+    if df_all.empty:
+        st.info("Aucune plante disponible.")
+        return
+
+    recherche = st.text_input("🔍 Rechercher (nom, usage, habitat, informations...)", "", key="catalogue_recherche")
+
+    if recherche:
+        mask = (
+            df_all["Nom"].str.contains(recherche, case=False, na=False) |
+            df_all["Usage"].str.contains(recherche, case=False, na=False) |
+            df_all["Habitat"].str.contains(recherche, case=False, na=False) |
+            df_all["Informations"].str.contains(recherche, case=False, na=False)
+        )
+        df_filtre = df_all[mask]
+    else:
+        df_filtre = df_all
+
+    st.caption(f"{len(df_filtre)} plante(s) trouvée(s)")
+
+    for _, row in df_filtre.iterrows():
+        type_lower = row["Usage"].lower()
+        row_class = "champignon" if "champignon" in type_lower else "herbe"
+        row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
+        rarete = row["Rarete"]
+        nb_etoiles = min(max(-int(rarete), 0), 5)
+        etoiles = "⭐" * nb_etoiles
+        st.markdown(f"""
+        <div class="card {row_class}">
+        <h3>{row_type} {row['Nom']} <span style="font-size:0.8em; color:#aaa;">— {row['Environnement']}</span></h3>
+        <p><b>Usage :</b> {row['Usage']}</p>
+        <p><b>Habitat :</b> {row['Habitat']}</p>
+        <p><b>Rareté :</b> {etoiles} ({rarete})</p>
+        <p><b>Prolifération :</b> {row['Proliferation']}</p>
+        <p><b>Informations :</b><br>{row['Informations']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ==========================
 # TIRAGE
 # ==========================
 def tirer_plantes(data, nb):
@@ -222,7 +277,7 @@ if st.session_state.role == "joueur":
     joueur = st.session_state.joueur
     inventaire = get_inventaire(joueur)
 
-    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal", "🔑 Mon compte"])
+    tabs_joueur = st.tabs(["📦 Inventaire", "📜 Journal", "📖 Catalogue", "🔑 Mon compte"])
 
     with tabs_joueur[0]:
         st.subheader("📦 Mon Inventaire")
@@ -286,10 +341,10 @@ if st.session_state.role == "joueur":
         else:
             st.info("Aucune utilisation enregistrée.")
 
-    # ==========================
-    # ONGLET MON COMPTE (JOUEUR)
-    # ==========================
     with tabs_joueur[2]:
+        afficher_catalogue()
+
+    with tabs_joueur[3]:
         st.subheader("🔑 Changer mon mot de passe")
         ancien_mdp = st.text_input("Ancien mot de passe", type="password", key="ancien_mdp_joueur")
         nouveau_mdp = st.text_input("Nouveau mot de passe", type="password", key="nouveau_mdp_joueur")
@@ -313,9 +368,10 @@ if st.session_state.role == "joueur":
 # INTERFACE ADMIN
 # ==========================
 elif st.session_state.role == "admin":
-    tab_gestion, tab_attribution, tab_historique, tab_users = st.tabs([
+    tab_gestion, tab_attribution, tab_catalogue, tab_historique, tab_users = st.tabs([
         "🎮 Gestion",
         "🌿 Attribution manuelle",
+        "📖 Catalogue",
         "📜 Historique",
         "👥 Utilisateurs"
     ])
@@ -411,6 +467,9 @@ elif st.session_state.role == "admin":
                 </div>
                 """, unsafe_allow_html=True)
 
+    with tab_catalogue:
+        afficher_catalogue()
+
     with tab_historique:
         st.subheader("📜 Historique des tirages")
         hist = get_historique_tirages()
@@ -449,9 +508,6 @@ elif st.session_state.role == "admin":
                 st.success(f"Le joueur '{joueur_suppr}' a été supprimé.")
                 st.rerun()
 
-            # ==========================
-            # RESET MOT DE PASSE (ADMIN)
-            # ==========================
             st.divider()
             st.subheader("🔑 Réinitialiser le mot de passe d'un joueur")
             joueur_mdp = st.selectbox("Sélectionner un joueur", joueurs, key="joueur_mdp_admin")
