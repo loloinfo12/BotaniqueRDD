@@ -49,24 +49,60 @@ for key in ["joueur", "role", "last_tirage"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
+if "filtre_type" not in st.session_state:
+    st.session_state.filtre_type = None
+
 # ==========================
-# ICONE UTILS
+# TYPES DE PLANTES
 # ==========================
+TYPES_PLANTES = [
+    ("❤️",  "Soin",         ["soin", "médic", "guér", "curatif"]),
+    ("☠️",  "Toxique",      ["tox", "poison", "venin"]),
+    ("🍄",  "Champignon",   ["champignon"]),
+    ("🍽️", "Alimentaire",  ["aliment", "comestible", "nourriture"]),
+    ("🌸",  "Aromatique",   ["arom", "parfum", "épice"]),
+    ("✨",  "Magique",      ["mag", "ritual", "occulte", "enchan"]),
+    ("🪵",  "Matériau",     ["bois", "résine", "fibr", "matér"]),
+    ("🧴",  "Cosmétique",   ["hygién", "cosmét", "beauté"]),
+    ("🎨",  "Colorant",     ["tinctor", "teintur", "colorant"]),
+    ("🐛",  "Insecticide",  ["insecti", "répuls", "pestici"]),
+    ("⚡",  "Stimulant",    ["stimul", "tonique", "énergi"]),
+    ("🌀",  "Hallucinogène",["halluci", "psycho", "narcot"]),
+    ("🌱",  "Autre",        []),
+]
+
 def get_icone(usage):
     u = usage.lower()
-    if any(m in u for m in ["soin", "médic", "guér", "curatif"]):    return "❤️"
-    if any(m in u for m in ["tox", "poison", "venin"]):               return "☠️"
-    if "champignon" in u:                                              return "🍄"
-    if any(m in u for m in ["aliment", "comestible", "nourriture"]):  return "🍽️"
-    if any(m in u for m in ["arom", "parfum", "épice"]):              return "🌸"
-    if any(m in u for m in ["mag", "ritual", "occulte", "enchan"]):   return "✨"
-    if any(m in u for m in ["bois", "résine", "fibr", "matér"]):      return "🪵"
-    if any(m in u for m in ["hygién", "cosmét", "beauté"]):           return "🧴"
-    if any(m in u for m in ["tinctor", "teintur", "colorant"]):       return "🎨"
-    if any(m in u for m in ["insecti", "répuls", "pestici"]):         return "🐛"
-    if any(m in u for m in ["stimul", "tonique", "énergi"]):          return "⚡"
-    if any(m in u for m in ["halluci", "psycho", "narcot"]):          return "🌀"
+    for icone, label, mots in TYPES_PLANTES:
+        if label == "Autre":
+            continue
+        if any(m in u for m in mots):
+            return icone
     return "🌱"
+
+def get_label(usage):
+    u = usage.lower()
+    for icone, label, mots in TYPES_PLANTES:
+        if label == "Autre":
+            continue
+        if any(m in u for m in mots):
+            return label
+    return "Autre"
+
+def usage_match_type(usage, label):
+    u = usage.lower()
+    for icone, lbl, mots in TYPES_PLANTES:
+        if lbl == label:
+            if label == "Autre":
+                # "Autre" = aucun autre type ne correspond
+                for icone2, lbl2, mots2 in TYPES_PLANTES:
+                    if lbl2 == "Autre":
+                        continue
+                    if any(m in u for m in mots2):
+                        return False
+                return True
+            return any(m in u for m in mots)
+    return False
 
 # ==========================
 # SUPABASE UTILS
@@ -199,28 +235,60 @@ def get_toutes_les_plantes():
         return pd.concat(frames, ignore_index=True).drop_duplicates(subset="Nom")
     return pd.DataFrame()
 
-def afficher_catalogue():
+def afficher_catalogue(key_prefix=""):
     st.subheader("📖 Catalogue des plantes")
     df_all = get_toutes_les_plantes()
     if df_all.empty:
         st.info("Aucune plante disponible.")
         return
 
-    recherche = st.text_input("🔍 Rechercher (nom, usage, habitat, informations...)", "", key="catalogue_recherche")
+    # --- Boutons icônes filtre par type ---
+    st.markdown("**Filtrer par type :**")
+
+    # On ne montre que les types présents dans les données
+    types_presents = set(df_all["Usage"].apply(get_label))
+    cols = st.columns(len(TYPES_PLANTES))
+    for i, (icone, label, _) in enumerate(TYPES_PLANTES):
+        if label not in types_presents:
+            cols[i].markdown("")
+            continue
+        actif = st.session_state.filtre_type == label
+        label_bouton = f"{icone}" if not actif else f"**{icone}**"
+        bordure = "2px solid #7CFC00" if actif else "2px solid transparent"
+        # On utilise un style inline via markdown pour simuler le highlight
+        if cols[i].button(icone, key=f"btn_{key_prefix}_{label}", help=label):
+            if actif:
+                st.session_state.filtre_type = None
+            else:
+                st.session_state.filtre_type = label
+            st.rerun()
+
+    # Affichage du filtre actif
+    if st.session_state.filtre_type:
+        icone_active = next((ic for ic, lb, _ in TYPES_PLANTES if lb == st.session_state.filtre_type), "")
+        st.markdown(f"Filtre actif : {icone_active} **{st.session_state.filtre_type}** — cliquez à nouveau pour désactiver.")
+
+    # --- Barre de recherche texte ---
+    recherche = st.text_input("🔍 Rechercher (nom, usage, habitat, informations...)", "", key=f"catalogue_recherche_{key_prefix}")
+
+    # --- Application des filtres ---
+    df_filtre = df_all.copy()
+
+    if st.session_state.filtre_type:
+        df_filtre = df_filtre[df_filtre["Usage"].apply(lambda u: usage_match_type(u, st.session_state.filtre_type))]
 
     if recherche:
         mask = (
-            df_all["Nom"].str.contains(recherche, case=False, na=False) |
-            df_all["Usage"].str.contains(recherche, case=False, na=False) |
-            df_all["Habitat"].str.contains(recherche, case=False, na=False) |
-            df_all["Informations"].str.contains(recherche, case=False, na=False)
+            df_filtre["Nom"].str.contains(recherche, case=False, na=False) |
+            df_filtre["Usage"].str.contains(recherche, case=False, na=False) |
+            df_filtre["Habitat"].str.contains(recherche, case=False, na=False) |
+            df_filtre["Informations"].str.contains(recherche, case=False, na=False)
         )
-        df_filtre = df_all[mask]
-    else:
-        df_filtre = df_all
+        df_filtre = df_filtre[mask]
 
     st.caption(f"{len(df_filtre)} plante(s) trouvée(s)")
 
+    # --- Affichage des cartes ---
     for _, row in df_filtre.iterrows():
         usage = row["Usage"]
         icone = get_icone(usage)
@@ -373,7 +441,7 @@ if st.session_state.role == "joueur":
             st.info("Aucune utilisation enregistrée.")
 
     with tabs_joueur[2]:
-        afficher_catalogue()
+        afficher_catalogue(key_prefix="joueur")
 
     with tabs_joueur[3]:
         st.subheader("🔑 Changer mon mot de passe")
@@ -499,7 +567,7 @@ elif st.session_state.role == "admin":
                 """, unsafe_allow_html=True)
 
     with tab_catalogue:
-        afficher_catalogue()
+        afficher_catalogue(key_prefix="admin")
 
     with tab_historique:
         st.subheader("📜 Historique des tirages")
