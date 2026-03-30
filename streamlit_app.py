@@ -50,6 +50,25 @@ for key in ["joueur", "role", "last_tirage"]:
         st.session_state[key] = None
 
 # ==========================
+# ICONE UTILS
+# ==========================
+def get_icone(usage):
+    u = usage.lower()
+    if any(m in u for m in ["soin", "médic", "guér", "curatif"]):    return "❤️"
+    if any(m in u for m in ["tox", "poison", "venin"]):               return "☠️"
+    if "champignon" in u:                                              return "🍄"
+    if any(m in u for m in ["aliment", "comestible", "nourriture"]):  return "🍽️"
+    if any(m in u for m in ["arom", "parfum", "épice"]):              return "🌸"
+    if any(m in u for m in ["mag", "ritual", "occulte", "enchan"]):   return "✨"
+    if any(m in u for m in ["bois", "résine", "fibr", "matér"]):      return "🪵"
+    if any(m in u for m in ["hygién", "cosmét", "beauté"]):           return "🧴"
+    if any(m in u for m in ["tinctor", "teintur", "colorant"]):       return "🎨"
+    if any(m in u for m in ["insecti", "répuls", "pestici"]):         return "🐛"
+    if any(m in u for m in ["stimul", "tonique", "énergi"]):          return "⚡"
+    if any(m in u for m in ["halluci", "psycho", "narcot"]):          return "🌀"
+    return "🌱"
+
+# ==========================
 # SUPABASE UTILS
 # ==========================
 def ajouter_joueur(pseudo, role="joueur", mdp_hash=""):
@@ -142,7 +161,6 @@ def charger_fichier(nom):
     df = df.iloc[:, :8].copy()
     df.columns = ["Nom", "Usage", "Habitat", "Informations", "Rarete", "Debut", "Fin", "Proliferation"]
 
-    # Remplacement des ?? par '
     df = df.apply(lambda col: col.str.replace("??", "'", regex=False) if col.dtype == "object" else col)
 
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
@@ -204,16 +222,17 @@ def afficher_catalogue():
     st.caption(f"{len(df_filtre)} plante(s) trouvée(s)")
 
     for _, row in df_filtre.iterrows():
-        type_lower = row["Usage"].lower()
+        usage = row["Usage"]
+        icone = get_icone(usage)
+        type_lower = usage.lower()
         row_class = "champignon" if "champignon" in type_lower else "herbe"
-        row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
         rarete = row["Rarete"]
         nb_etoiles = min(max(-int(rarete), 0), 5)
         etoiles = "⭐" * nb_etoiles
         st.markdown(f"""
         <div class="card {row_class}">
-        <h3>{row_type} {row['Nom']} <span style="font-size:0.8em; color:#aaa;">— {row['Environnement']}</span></h3>
-        <p><b>Usage :</b> {row['Usage']}</p>
+        <h3>{icone} {row['Nom']} <span style="font-size:0.8em; color:#aaa;">— {row['Environnement']}</span></h3>
+        <p><b>Usage :</b> {usage}</p>
         <p><b>Habitat :</b> {row['Habitat']}</p>
         <p><b>Rareté :</b> {etoiles} ({rarete})</p>
         <p><b>Prolifération :</b> {row['Proliferation']}</p>
@@ -289,14 +308,7 @@ if st.session_state.role == "joueur":
                     if plante in data["lookup"]:
                         type_plante = data["lookup"][plante]["Usage"]
                         break
-                usage_lower = type_plante.lower()
-                if any(m in usage_lower for m in ["soin", "médic", "guér", "curatif"]): icone = "❤️"
-                elif any(m in usage_lower for m in ["tox", "poison"]): icone = "☠️"
-                elif "aliment" in usage_lower: icone = "🍽️"
-                elif "arom" in usage_lower: icone = "🌿"
-                elif "mag" in usage_lower: icone = "✨"
-                elif "bois" in usage_lower or "résine" in usage_lower: icone = "🪵"
-                else: icone = "🌱"
+                icone = get_icone(type_plante)
                 data_inv.append({"Plante": f"{icone} {plante}", "Type": type_plante, "Quantité": qt})
             st.dataframe(pd.DataFrame(data_inv), use_container_width=True, hide_index=True)
 
@@ -319,14 +331,33 @@ if st.session_state.role == "joueur":
             max_qt = inventaire[plante_select]
             quantite_utilisee = st.number_input("Quantité à utiliser", min_value=1, max_value=max_qt, value=1)
             if st.button("Utiliser"):
-                usage = plante_info["Usage"].lower()
-                if any(m in usage for m in ["soin", "médic", "guér", "curatif"]): message = f"❤️ {plante_select} utilisée pour ses vertus médicinales."
-                elif any(m in usage for m in ["tox", "poison"]): message = f"☠️ {plante_select} manipulée avec prudence (toxique)."
-                elif "aliment" in usage: message = f"🍽️ {plante_select} consommée."
-                elif "arom" in usage: message = f"🌿 {plante_select} utilisée pour son arôme."
-                elif "mag" in usage: message = f"✨ {plante_select} intégrée à un rituel."
-                elif "bois" in usage or "résine" in usage: message = f"🪵 {plante_select} transformée pour un usage matériel."
-                else: message = f"🌱 {plante_select} utilisée."
+                usage = plante_info["Usage"]
+                icone = get_icone(usage)
+                u = usage.lower()
+                if any(m in u for m in ["soin", "médic", "guér", "curatif"]):
+                    message = f"{icone} {plante_select} utilisée pour ses vertus médicinales."
+                elif any(m in u for m in ["tox", "poison", "venin"]):
+                    message = f"{icone} {plante_select} manipulée avec prudence (toxique)."
+                elif any(m in u for m in ["aliment", "comestible", "nourriture"]):
+                    message = f"{icone} {plante_select} consommée."
+                elif any(m in u for m in ["arom", "parfum", "épice"]):
+                    message = f"{icone} {plante_select} utilisée pour son arôme."
+                elif any(m in u for m in ["mag", "ritual", "occulte", "enchan"]):
+                    message = f"{icone} {plante_select} intégrée à un rituel."
+                elif any(m in u for m in ["bois", "résine", "fibr", "matér"]):
+                    message = f"{icone} {plante_select} transformée pour un usage matériel."
+                elif any(m in u for m in ["hygién", "cosmét", "beauté"]):
+                    message = f"{icone} {plante_select} utilisée pour l'hygiène ou la cosmétique."
+                elif any(m in u for m in ["tinctor", "teintur", "colorant"]):
+                    message = f"{icone} {plante_select} utilisée comme colorant."
+                elif any(m in u for m in ["insecti", "répuls", "pestici"]):
+                    message = f"{icone} {plante_select} utilisée comme répulsif."
+                elif any(m in u for m in ["stimul", "tonique", "énergi"]):
+                    message = f"{icone} {plante_select} consommée pour ses effets stimulants."
+                elif any(m in u for m in ["halluci", "psycho", "narcot"]):
+                    message = f"{icone} {plante_select} utilisée avec grande précaution."
+                else:
+                    message = f"{icone} {plante_select} utilisée."
                 st.info(message)
                 retirer_de_inventaire(joueur, plante_select, quantite_utilisee)
                 ajouter_journal(joueur, plante_select, quantite_utilisee, message)
@@ -398,13 +429,13 @@ elif st.session_state.role == "admin":
                 for _, row in st.session_state.last_tirage.iterrows():
                     type_lower = row["Usage"].lower()
                     row_class = "champignon" if "champignon" in type_lower else "herbe"
-                    row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
+                    icone = get_icone(row["Usage"])
                     rarete = row["Rarete"]
                     nb_etoiles = min(max(-int(rarete), 0), 5)
                     etoiles = "⭐" * nb_etoiles
                     st.markdown(f"""
                     <div class="card {row_class}">
-                    <h3>{row_type} {row['Nom']}</h3>
+                    <h3>{icone} {row['Nom']}</h3>
                     <p><b>Usage :</b> {row['Usage']}</p>
                     <p><b>Habitat :</b> {row['Habitat']}</p>
                     <p><b>Rareté :</b> {etoiles} ({rarete})</p>
@@ -452,13 +483,13 @@ elif st.session_state.role == "admin":
                 plante_info = df_env[df_env["Nom"] == plante].iloc[0]
                 type_lower = plante_info["Usage"].lower()
                 row_class = "champignon" if "champignon" in type_lower else "herbe"
-                row_type = "🍄 Champignon" if "champignon" in type_lower else "🌱 Herbe"
+                icone = get_icone(plante_info["Usage"])
                 rarete = plante_info["Rarete"]
                 nb_etoiles = min(max(-int(rarete), 0), 5)
                 etoiles = "⭐" * nb_etoiles
                 st.markdown(f"""
                 <div class="card {row_class}">
-                <h3>{row_type} {plante_info['Nom']}</h3>
+                <h3>{icone} {plante_info['Nom']}</h3>
                 <p><b>Usage :</b> {plante_info['Usage']}</p>
                 <p><b>Habitat :</b> {plante_info['Habitat']}</p>
                 <p><b>Rareté :</b> {etoiles} ({rarete})</p>
@@ -491,8 +522,17 @@ elif st.session_state.role == "admin":
                 inv = get_inventaire(j)
                 with st.expander(f"🧑 {j} — {len(inv)} plante(s)"):
                     if inv:
+                        rows = []
+                        for p, q in inv.items():
+                            type_plante = "Inconnu"
+                            for data in fichiers.values():
+                                if p in data["lookup"]:
+                                    type_plante = data["lookup"][p]["Usage"]
+                                    break
+                            icone = get_icone(type_plante)
+                            rows.append({"Plante": f"{icone} {p}", "Type": type_plante, "Quantité": q})
                         st.dataframe(
-                            pd.DataFrame([{"Plante": p, "Quantité": q} for p, q in inv.items()]),
+                            pd.DataFrame(rows),
                             use_container_width=True,
                             hide_index=True
                         )
