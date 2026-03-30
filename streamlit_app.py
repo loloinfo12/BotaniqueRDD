@@ -39,6 +39,28 @@ st.markdown("""
 .card p { color: #f0f0f0; margin:2px 0; }
 .card.champignon { border-left: 5px solid #ff6600; }
 .card.herbe { border-left: 5px solid #32cd32; }
+
+/* Masquer les vrais boutons filtre tout en gardant leur fonctionnalité */
+div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
+    opacity: 0;
+    height: 0px !important;
+    min-height: 0px !important;
+    padding: 0px !important;
+    margin: 0px !important;
+    border: none !important;
+    overflow: hidden;
+    position: absolute;
+}
+div[data-testid="stHorizontalBlock"] button[kind="primary"] {
+    opacity: 0;
+    height: 0px !important;
+    min-height: 0px !important;
+    padding: 0px !important;
+    margin: 0px !important;
+    border: none !important;
+    overflow: hidden;
+    position: absolute;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,13 +263,36 @@ def afficher_catalogue(key_prefix=""):
         st.info("Aucune plante disponible.")
         return
 
-    # --- Boutons icônes filtre par type ---
+    # --- Boutons icônes filtre par type (style pills HTML) ---
     st.markdown("**Filtrer par type :**")
-
-    # Uniquement les types présents dans les données, sans trous
     types_presents = set(df_all["Usage"].apply(get_label))
     types_a_afficher = [(icone, label, mots) for icone, label, mots in TYPES_PLANTES if label in types_presents]
 
+    # Rendu visuel HTML des pills
+    boutons_html = "<div style='display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;'>"
+    for icone, label, _ in types_a_afficher:
+        actif = st.session_state.filtre_type == label
+        bg      = "#7CFC00" if actif else "#2e2e2e"
+        color   = "#000000" if actif else "#e0e0e0"
+        border  = "#7CFC00" if actif else "#555555"
+        weight  = "600" if actif else "400"
+        boutons_html += f"""
+            <span style='
+                background:{bg};
+                color:{color};
+                border:2px solid {border};
+                border-radius:20px;
+                padding:5px 14px;
+                font-size:0.85em;
+                font-weight:{weight};
+                white-space:nowrap;
+                user-select:none;
+            '>{icone} {label}</span>
+        """
+    boutons_html += "</div>"
+    st.markdown(boutons_html, unsafe_allow_html=True)
+
+    # Vrais boutons Streamlit invisibles pour capturer les clics
     cols = st.columns(len(types_a_afficher))
     for i, (icone, label, _) in enumerate(types_a_afficher):
         actif = st.session_state.filtre_type == label
@@ -255,7 +300,8 @@ def afficher_catalogue(key_prefix=""):
             f"{icone} {label}",
             key=f"btn_{key_prefix}_{label}",
             help=label,
-            type="primary" if actif else "secondary"
+            type="primary" if actif else "secondary",
+            use_container_width=True
         ):
             st.session_state.filtre_type = None if actif else label
             st.rerun()
@@ -263,7 +309,7 @@ def afficher_catalogue(key_prefix=""):
     # Indicateur filtre actif
     if st.session_state.filtre_type:
         icone_active = next((ic for ic, lb, _ in TYPES_PLANTES if lb == st.session_state.filtre_type), "")
-        st.markdown(f"Filtre actif : {icone_active} **{st.session_state.filtre_type}** — cliquez à nouveau pour désactiver.")
+        st.caption(f"Filtre actif : {icone_active} {st.session_state.filtre_type} — cliquez à nouveau pour désactiver.")
 
     # --- Barre de recherche texte ---
     recherche = st.text_input("🔍 Rechercher (nom, usage, habitat, informations...)", "", key=f"catalogue_recherche_{key_prefix}")
