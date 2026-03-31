@@ -276,19 +276,19 @@ def afficher_catalogue(key_prefix=""):
         color   = "#000000" if actif else "#e0e0e0"
         border  = "#7CFC00" if actif else "#555555"
         weight  = "600" if actif else "400"
-        boutons_html += f"""
-            <span style='
-                background:{bg};
-                color:{color};
-                border:2px solid {border};
-                border-radius:20px;
-                padding:5px 14px;
-                font-size:0.85em;
-                font-weight:{weight};
-                white-space:nowrap;
-                user-select:none;
-            '>{icone} {label}</span>
-        """
+        boutons_html += (
+            "<span style='"
+            f"background:{bg};"
+            f"color:{color};"
+            f"border:2px solid {border};"
+            "border-radius:20px;"
+            "padding:5px 14px;"
+            "font-size:0.85em;"
+            f"font-weight:{weight};"
+            "white-space:nowrap;"
+            "user-select:none;"
+            f"'>{icone} {label}</span>"
+        )
     boutons_html += "</div>"
     st.markdown(boutons_html, unsafe_allow_html=True)
 
