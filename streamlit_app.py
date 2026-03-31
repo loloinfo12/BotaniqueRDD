@@ -10,7 +10,7 @@ from supabase import create_client, Client
 # CONFIGURATION
 # ==========================
 ADMIN_USER = "admin"
-ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"  # SHA256 mot de passe admin
+ADMIN_HASH = "3a5763614660da0211b90045a806e2105a528a06a4dc9694299484092dd74d3e"
 
 # ==========================
 # SUPABASE CLIENT
@@ -39,28 +39,6 @@ st.markdown("""
 .card p { color: #f0f0f0; margin:2px 0; }
 .card.champignon { border-left: 5px solid #ff6600; }
 .card.herbe { border-left: 5px solid #32cd32; }
-
-/* Masquer les vrais boutons filtre tout en gardant leur fonctionnalité */
-div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
-    opacity: 0;
-    height: 0px !important;
-    min-height: 0px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    border: none !important;
-    overflow: hidden;
-    position: absolute;
-}
-div[data-testid="stHorizontalBlock"] button[kind="primary"] {
-    opacity: 0;
-    height: 0px !important;
-    min-height: 0px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    border: none !important;
-    overflow: hidden;
-    position: absolute;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -217,9 +195,7 @@ def charger_fichier(nom):
 
     df = df.iloc[:, :8].copy()
     df.columns = ["Nom", "Usage", "Habitat", "Informations", "Rarete", "Debut", "Fin", "Proliferation"]
-
     df = df.apply(lambda col: col.str.replace("??", "'", regex=False) if col.dtype == "object" else col)
-
     df["Debut"] = pd.to_numeric(df["Debut"], errors="coerce").fillna(0).astype(int)
     df["Fin"] = pd.to_numeric(df["Fin"], errors="coerce").fillna(1000).astype(int)
     df["Rarete"] = pd.to_numeric(df["Rarete"], errors="coerce").fillna(0)
@@ -263,63 +239,60 @@ def afficher_catalogue(key_prefix=""):
         st.info("Aucune plante disponible.")
         return
 
-    # --- Boutons icônes filtre par type (style pills HTML) ---
+    # --- CSS pills ---
+    st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"] > div > div > button {
+        border-radius: 20px !important;
+        padding: 4px 14px !important;
+        font-size: 0.85em !important;
+        border: 2px solid #555555 !important;
+        background-color: #2e2e2e !important;
+        color: #e0e0e0 !important;
+        font-weight: 400 !important;
+        white-space: nowrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div > div > button[kind="primary"] {
+        background-color: #7CFC00 !important;
+        color: #000000 !important;
+        border-color: #7CFC00 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div > div > button:hover {
+        border-color: #7CFC00 !important;
+        color: #7CFC00 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- Boutons filtre ---
     st.markdown("**Filtrer par type :**")
     types_presents = set(df_all["Usage"].apply(get_label))
     types_a_afficher = [(icone, label, mots) for icone, label, mots in TYPES_PLANTES if label in types_presents]
 
-    # Rendu visuel HTML des pills
-    boutons_html = "<div style='display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;'>"
-    for icone, label, _ in types_a_afficher:
-        actif = st.session_state.filtre_type == label
-        bg      = "#7CFC00" if actif else "#2e2e2e"
-        color   = "#000000" if actif else "#e0e0e0"
-        border  = "#7CFC00" if actif else "#555555"
-        weight  = "600" if actif else "400"
-        boutons_html += (
-            "<span style='"
-            f"background:{bg};"
-            f"color:{color};"
-            f"border:2px solid {border};"
-            "border-radius:20px;"
-            "padding:5px 14px;"
-            "font-size:0.85em;"
-            f"font-weight:{weight};"
-            "white-space:nowrap;"
-            "user-select:none;"
-            f"'>{icone} {label}</span>"
-        )
-    boutons_html += "</div>"
-    st.markdown(boutons_html, unsafe_allow_html=True)
-
-    # Vrais boutons Streamlit invisibles pour capturer les clics
     cols = st.columns(len(types_a_afficher))
     for i, (icone, label, _) in enumerate(types_a_afficher):
         actif = st.session_state.filtre_type == label
         if cols[i].button(
             f"{icone} {label}",
             key=f"btn_{key_prefix}_{label}",
-            help=label,
             type="primary" if actif else "secondary",
             use_container_width=True
         ):
             st.session_state.filtre_type = None if actif else label
             st.rerun()
 
-    # Indicateur filtre actif
     if st.session_state.filtre_type:
         icone_active = next((ic for ic, lb, _ in TYPES_PLANTES if lb == st.session_state.filtre_type), "")
         st.caption(f"Filtre actif : {icone_active} {st.session_state.filtre_type} — cliquez à nouveau pour désactiver.")
 
-    # --- Barre de recherche texte ---
+    # --- Recherche ---
     recherche = st.text_input("🔍 Rechercher (nom, usage, habitat, informations...)", "", key=f"catalogue_recherche_{key_prefix}")
 
-    # --- Application des filtres ---
+    # --- Filtres ---
     df_filtre = df_all.copy()
-
     if st.session_state.filtre_type:
         df_filtre = df_filtre[df_filtre["Usage"].apply(lambda u: usage_match_type(u, st.session_state.filtre_type))]
-
     if recherche:
         mask = (
             df_filtre["Nom"].str.contains(recherche, case=False, na=False) |
@@ -331,7 +304,7 @@ def afficher_catalogue(key_prefix=""):
 
     st.caption(f"{len(df_filtre)} plante(s) trouvée(s)")
 
-    # --- Affichage des cartes ---
+    # --- Cartes ---
     for _, row in df_filtre.iterrows():
         usage = row["Usage"]
         icone = get_icone(usage)
@@ -642,11 +615,7 @@ elif st.session_state.role == "admin":
                                     break
                             icone = get_icone(type_plante)
                             rows.append({"Plante": f"{icone} {p}", "Type": type_plante, "Quantité": q})
-                        st.dataframe(
-                            pd.DataFrame(rows),
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
                     else:
                         st.info("Inventaire vide.")
 
@@ -673,6 +642,5 @@ elif st.session_state.role == "admin":
                     nouveau_hash = hashlib.sha256(nouveau_mdp.encode()).hexdigest()
                     changer_mot_de_passe(joueur_mdp, nouveau_hash)
                     st.success(f"✅ Mot de passe de '{joueur_mdp}' modifié avec succès.")
-
         else:
             st.info("Aucun joueur enregistré.")
