@@ -39,6 +39,29 @@ st.markdown("""
 .card p { color: #f0f0f0; margin:2px 0; }
 .card.champignon { border-left: 5px solid #ff6600; }
 .card.herbe { border-left: 5px solid #32cd32; }
+
+button[kind="secondary"], button[kind="primary"] {
+    border-radius: 999px !important;
+    padding: 6px 18px !important;
+    font-size: 0.88em !important;
+    white-space: nowrap !important;
+    min-width: fit-content !important;
+}
+button[kind="secondary"] {
+    border: 2px solid #555555 !important;
+    background-color: #2e2e2e !important;
+    color: #e0e0e0 !important;
+}
+button[kind="primary"] {
+    background-color: #7CFC00 !important;
+    color: #000000 !important;
+    border: 2px solid #7CFC00 !important;
+    font-weight: 700 !important;
+}
+button[kind="secondary"]:hover, button[kind="primary"]:hover {
+    border-color: #7CFC00 !important;
+    color: #7CFC00 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -218,7 +241,7 @@ fichiers = {
 }
 
 # ==========================
-# CATALOGUE UTILS
+# CATALOGUE
 # ==========================
 def get_toutes_les_plantes():
     frames = []
@@ -239,48 +262,27 @@ def afficher_catalogue(key_prefix=""):
         st.info("Aucune plante disponible.")
         return
 
-    # --- CSS pills ---
-    st.markdown("""
-    <style>
-    div[data-testid="stHorizontalBlock"] > div > div > button {
-        border-radius: 20px !important;
-        padding: 4px 14px !important;
-        font-size: 0.85em !important;
-        border: 2px solid #555555 !important;
-        background-color: #2e2e2e !important;
-        color: #e0e0e0 !important;
-        font-weight: 400 !important;
-        white-space: nowrap !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div > div > button[kind="primary"] {
-        background-color: #7CFC00 !important;
-        color: #000000 !important;
-        border-color: #7CFC00 !important;
-        font-weight: 600 !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div > div > button:hover {
-        border-color: #7CFC00 !important;
-        color: #7CFC00 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- Boutons filtre ---
+    # --- Boutons filtre en ligne, max 4 par ligne ---
     st.markdown("**Filtrer par type :**")
     types_presents = set(df_all["Usage"].apply(get_label))
     types_a_afficher = [(icone, label, mots) for icone, label, mots in TYPES_PLANTES if label in types_presents]
 
-    cols = st.columns(len(types_a_afficher))
-    for i, (icone, label, _) in enumerate(types_a_afficher):
-        actif = st.session_state.filtre_type == label
-        if cols[i].button(
-            f"{icone} {label}",
-            key=f"btn_{key_prefix}_{label}",
-            type="primary" if actif else "secondary",
-            use_container_width=True
-        ):
-            st.session_state.filtre_type = None if actif else label
-            st.rerun()
+    NB_PAR_LIGNE = 4
+    for ligne_start in range(0, len(types_a_afficher), NB_PAR_LIGNE):
+        groupe = types_a_afficher[ligne_start:ligne_start + NB_PAR_LIGNE]
+        nb = len(groupe)
+        # Colonnes : boutons à taille naturelle + espace vide à droite
+        ratios = [2] * nb + [max(1, 8 - nb * 2)]
+        cols = st.columns(ratios)
+        for i, (icone, label, _) in enumerate(groupe):
+            actif = st.session_state.filtre_type == label
+            if cols[i].button(
+                f"{icone} {label}",
+                key=f"btn_{key_prefix}_{label}",
+                type="primary" if actif else "secondary",
+            ):
+                st.session_state.filtre_type = None if actif else label
+                st.rerun()
 
     if st.session_state.filtre_type:
         icone_active = next((ic for ic, lb, _ in TYPES_PLANTES if lb == st.session_state.filtre_type), "")
